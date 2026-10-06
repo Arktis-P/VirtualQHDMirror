@@ -39,7 +39,7 @@ Press **Ctrl+Alt+F11** while captured.
 
 The source cursor position is converted back into the corresponding physical-mirror position, `ClipCursor` is released, and the real cursor returns to the physical monitor. Input remains **ARMED**, so another click on the mirror captures it again.
 
-When already released, **Ctrl+Alt+F11** toggles input ARMED/OFF.
+When already released/ARMED, **Ctrl+Alt+F11 does nothing**. In captured mode F11 is intentionally a release-only hotkey so it cannot accidentally disable mirror input.
 
 ### Why this differs from Chrome Remote Desktop
 
@@ -63,7 +63,7 @@ Requirements:
 ## Hotkeys
 
 - `Ctrl + Alt + F12`: exit
-- `Ctrl + Alt + F11`: release captured input; when released, toggle input ARMED/OFF
+- `Ctrl + Alt + F11`: release captured input; no action while already ARMED
 - `Ctrl + Alt + F10`: diagnostic overlay
 - `Ctrl + Alt + F9`: render mode cycle
 

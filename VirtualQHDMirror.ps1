@@ -332,14 +332,9 @@ public sealed class MirrorV014 : Form
             }
             if(id==HK_INPUT){
                 if(inputMode=="captured") {
-                    if(capturedInput) {
-                        EndCapturedInput();
-                    }
-                    else {
-                        capturePending=false;
-                        inputEnabled=!inputEnabled;
-                        lastZone=inputEnabled?"ARMED":"OFF";
-                    }
+                    capturePending=false;
+                    if(capturedInput) EndCapturedInput();
+                    else lastZone="ARMED";
                     return;
                 }
 
@@ -486,7 +481,7 @@ public sealed class MirrorV014 : Form
         using(var f=new Font("Consolas",10)) {
             string inputState;
             if(inputMode=="captured")
-                inputState=capturedInput?"CAPTURED":(inputEnabled?"ARMED":"OFF");
+                inputState=capturedInput?"CAPTURED":"ARMED";
             else
                 inputState=inputEnabled?"LEGACY ON":"LEGACY OFF";
 
@@ -649,7 +644,7 @@ public sealed class MirrorV014 : Form
             destination=MapSourceToDestination(current);
 
         SendAbsoluteMouseMove(destination);
-        lastZone=inputEnabled?"ARMED":"OFF";
+        lastZone="ARMED";
         MarkInput();
     }
 
@@ -664,7 +659,7 @@ public sealed class MirrorV014 : Form
             capturedInput=false;
             capturePending=false;
             lastCapturedCursorValid=false;
-            lastZone=inputEnabled?"ARMED":"OFF";
+            lastZone="ARMED";
             return;
         }
 
@@ -881,7 +876,7 @@ public sealed class MirrorV014 : Form
         lastMapped=Map(e.Location);
 
         if(inputMode=="captured") {
-            lastZone=inputEnabled?"ARMED":"OFF";
+            lastZone=capturedInput?"CAPTURED":"ARMED";
             base.OnMouseMove(e);
             return;
         }
@@ -904,8 +899,8 @@ public sealed class MirrorV014 : Form
         lastMapped=Map(e.Location);
 
         if(inputMode=="captured") {
-            lastZone=inputEnabled?"ARMED":"OFF";
-            capturePending=inputEnabled&&!capturedInput;
+            lastZone=capturedInput?"CAPTURED":"ARMED";
+            capturePending=!capturedInput;
             capturePendingButton=e.Button;
             base.OnMouseDown(e);
             return;
@@ -988,8 +983,8 @@ public sealed class MirrorV014 : Form
         lastMapped=Map(e.Location);
 
         if(inputMode=="captured") {
-            lastZone=inputEnabled?"ARMED":"OFF";
-            bool acquire=capturePending&&inputEnabled&&!capturedInput&&e.Button==capturePendingButton;
+            lastZone=capturedInput?"CAPTURED":"ARMED";
+            bool acquire=capturePending&&!capturedInput&&e.Button==capturePendingButton;
             capturePending=false;
             if(acquire)BeginCapturedClick(lastMapped,e.Button);
             base.OnMouseUp(e);
@@ -1091,8 +1086,8 @@ public sealed class MirrorV014 : Form
         lastMapped=Map(e.Location);
 
         if(inputMode=="captured") {
-            lastZone=inputEnabled?"ARMED":"OFF";
-            if(inputEnabled&&!capturedInput&&AcquireCapturedInput(lastMapped)) {
+            lastZone=capturedInput?"CAPTURED":"ARMED";
+            if(!capturedInput&&AcquireCapturedInput(lastMapped)) {
                 Application.DoEvents();
                 Thread.Sleep(10);
                 SendNativeWheel(e.Delta);

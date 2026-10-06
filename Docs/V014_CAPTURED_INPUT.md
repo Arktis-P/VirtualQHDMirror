@@ -8,18 +8,14 @@ Chrome Remote Desktop separates video, cursor state and input. Its Windows input
 
 ## State model
 
-### OFF
-
-- Mirror renders normally.
-- Mouse input is not forwarded.
-- Ctrl+Alt+F11 changes the state to ARMED.
-
 ### ARMED
 
+- This is the default released state for captured mode.
 - The real cursor is on the physical destination monitor.
 - The mirror does not synthesize hover/move events into the source.
 - A click on the mirror maps the FHD point to QHD and acquires CAPTURED mode.
 - Mouse wheel over the mirror can also acquire CAPTURED mode.
+- Ctrl+Alt+F11 does nothing while already ARMED; it never disables captured-mode input.
 
 ### CAPTURED
 
@@ -27,7 +23,7 @@ Chrome Remote Desktop separates video, cursor state and input. Its Windows input
 - `ClipCursor` confines it to the virtual source monitor.
 - Windows handles subsequent mouse movement/buttons/wheel/drag natively.
 - The destination continues showing the source cursor through software composition.
-- Ctrl+Alt+F11 releases capture.
+- Ctrl+Alt+F11 releases capture and returns to ARMED.
 
 ## Release behavior
 
