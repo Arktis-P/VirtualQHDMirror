@@ -1,6 +1,6 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
-기준 버전: **v0.14 development prototype**
+기준 버전: **v0.14.1 development prototype**
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -609,6 +609,16 @@ branch 정책 제안:
 - MagSetInputTransform/UIAccess는 일반 배포 기본 의존성으로 채택하지 않음
 - captured/legacy 경로는 회귀 비교용 fallback으로 유지
 - v0.13.1 실행본은 archive/v0.13.1에 보존
+
+### v0.14.1
+
+- Portal 입력 구조 유지
+- full-frame GDI 렌더와 software cursor 렌더 분리
+- cursor 전용 click-through overlay를 별도 UI thread에서 120 Hz 기본 추적
+- cursor polling 60 / 120 / 240 Hz 비교 가능
+- 전체 렌더 Adaptive / 30 / 60 / 실험적 120 FPS 지원
+- 1 ms timer resolution 요청으로 prototype frame pacing 개선
+- diagnostic overlay에 render cost / cursor path 표시
 
 ### v0.20
 

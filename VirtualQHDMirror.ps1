@@ -1,10 +1,12 @@
 param(
     [string]$SourceDevice = "",
     [string]$DestinationDevice = "",
-    [ValidateSet("adaptive","30","60")]
+    [ValidateSet("adaptive","30","60","120")]
     [string]$Mode = "adaptive",
     [ValidateSet("portal","captured","legacy")]
-    [string]$InputMode = "portal"
+    [string]$InputMode = "portal",
+    [ValidateSet(60,120,240)]
+    [int]$CursorHz = 120
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,7 +23,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-public sealed class MirrorV014 : Form
+public sealed class MirrorV0141 : Form
 {
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc cb, IntPtr data);
@@ -62,6 +64,8 @@ public sealed class MirrorV014 : Form
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern bool GetCursorInfo(ref CURSORINFO info);
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int valueSize);
+    [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint uPeriod);
+    [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint uPeriod);
     [DllImport("user32.dll")] static extern bool DrawIconEx(
         IntPtr hdc,int x,int y,IntPtr hIcon,int w,int h,uint step,IntPtr brush,uint flags);
 
@@ -90,6 +94,7 @@ public sealed class MirrorV014 : Form
     const int HK_EXIT=1, HK_INPUT=2, HK_OVERLAY=3, HK_MODE=4;
     const int VK_F9=0x78, VK_F10=0x79, VK_F11=0x7A, VK_F12=0x7B;
     const int WS_EX_NOACTIVATE=0x08000000, WS_EX_TOOLWINDOW=0x80;
+    const int WS_EX_TRANSPARENT=0x20, WS_EX_LAYERED=0x00080000;
     const uint SWP_NOSIZE=0x0001, SWP_NOZORDER=0x0004, SWP_NOACTIVATE=0x0010;
 
     const int SW_RESTORE=9, SW_MAXIMIZE=3;
@@ -176,6 +181,178 @@ public sealed class MirrorV014 : Form
         public int HotY=0;
     }
 
+    sealed class CursorOverlayV0141 : Form
+    {
+        readonly Rectangle sourceRect;
+        readonly int pollHz;
+        readonly System.Windows.Forms.Timer cursorTimer;
+        readonly Dictionary<IntPtr,CursorShape> shapes=new Dictionary<IntPtr,CursorShape>();
+
+        CURSORINFO current;
+        bool currentVisible=false;
+        Rectangle currentDrawRect=Rectangle.Empty;
+        bool timerResolutionRaised=false;
+
+        public CursorOverlayV0141(Rectangle source,Rectangle destination,int requestedHz) {
+            sourceRect=source;
+            pollHz=requestedHz<=60?60:(requestedHz>=240?240:120);
+
+            Text="VirtualQHDMirror v0.14.1 Cursor";
+            FormBorderStyle=FormBorderStyle.None;
+            StartPosition=FormStartPosition.Manual;
+            Bounds=destination;
+            BackColor=Color.Fuchsia;
+            TransparencyKey=Color.Fuchsia;
+            TopMost=true;
+            ShowInTaskbar=false;
+            DoubleBuffered=true;
+
+            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);
+
+            cursorTimer=new System.Windows.Forms.Timer();
+            cursorTimer.Interval=Math.Max(4,(int)Math.Round(1000.0/pollHz));
+            cursorTimer.Tick+=delegate{ PollCursor(); };
+
+            Shown+=delegate{
+                Bounds=destination;
+                if(timeBeginPeriod(1)==0)timerResolutionRaised=true;
+                cursorTimer.Start();
+            };
+
+            FormClosed+=delegate{
+                cursorTimer.Stop();
+                if(timerResolutionRaised)timeEndPeriod(1);
+            };
+        }
+
+        protected override CreateParams CreateParams {
+            get {
+                var cp=base.CreateParams;
+                cp.ExStyle|=WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_TRANSPARENT|WS_EX_LAYERED;
+                return cp;
+            }
+        }
+
+        protected override bool ShowWithoutActivation { get { return true; } }
+
+        protected override void WndProc(ref Message m) {
+            if(m.Msg==WM_NCHITTEST) {
+                m.Result=new IntPtr(-1);
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        CursorShape Shape(IntPtr cursor) {
+            CursorShape cached;
+            if(shapes.TryGetValue(cursor,out cached))return cached;
+
+            var shape=new CursorShape();
+            ICONINFO ii;
+            if(GetIconInfo(cursor,out ii)) {
+                shape.HotX=(int)ii.xHotspot;
+                shape.HotY=(int)ii.yHotspot;
+                try {
+                    BITMAP bm=new BITMAP();
+                    if(ii.hbmColor!=IntPtr.Zero &&
+                       GetObject(ii.hbmColor,Marshal.SizeOf(typeof(BITMAP)),ref bm)>0) {
+                        shape.Width=Math.Max(1,bm.bmWidth);
+                        shape.Height=Math.Max(1,Math.Abs(bm.bmHeight));
+                    }
+                    else if(ii.hbmMask!=IntPtr.Zero &&
+                            GetObject(ii.hbmMask,Marshal.SizeOf(typeof(BITMAP)),ref bm)>0) {
+                        shape.Width=Math.Max(1,bm.bmWidth);
+                        shape.Height=Math.Max(1,Math.Abs(bm.bmHeight)/2);
+                    }
+                }
+                finally {
+                    if(ii.hbmMask!=IntPtr.Zero)DeleteObject(ii.hbmMask);
+                    if(ii.hbmColor!=IntPtr.Zero)DeleteObject(ii.hbmColor);
+                }
+            }
+
+            shapes[cursor]=shape;
+            return shape;
+        }
+
+        Rectangle CursorRect(CURSORINFO ci) {
+            double scaleX=ClientSize.Width/(double)sourceRect.Width;
+            double scaleY=ClientSize.Height/(double)sourceRect.Height;
+            var shape=Shape(ci.hCursor);
+
+            int hotspotX=(int)Math.Round(shape.HotX*scaleX);
+            int hotspotY=(int)Math.Round(shape.HotY*scaleY);
+            int drawW=Math.Max(1,(int)Math.Round(shape.Width*scaleX));
+            int drawH=Math.Max(1,(int)Math.Round(shape.Height*scaleY));
+
+            int dx=(int)Math.Round((ci.ptScreenPos.X-sourceRect.Left)*scaleX)-hotspotX;
+            int dy=(int)Math.Round((ci.ptScreenPos.Y-sourceRect.Top )*scaleY)-hotspotY;
+            return new Rectangle(dx,dy,drawW,drawH);
+        }
+
+        void PollCursor() {
+            CURSORINFO next=new CURSORINFO();
+            next.cbSize=Marshal.SizeOf(typeof(CURSORINFO));
+
+            bool nextVisible=false;
+            Rectangle nextRect=Rectangle.Empty;
+
+            if(GetCursorInfo(ref next) &&
+               (next.flags&CURSOR_SHOWING)!=0 &&
+               next.hCursor!=IntPtr.Zero &&
+               next.ptScreenPos.X>=sourceRect.Left&&next.ptScreenPos.X<sourceRect.Right&&
+               next.ptScreenPos.Y>=sourceRect.Top&&next.ptScreenPos.Y<sourceRect.Bottom) {
+                nextVisible=true;
+                nextRect=CursorRect(next);
+            }
+
+            bool changed=
+                nextVisible!=currentVisible ||
+                (nextVisible && (!currentVisible ||
+                    next.hCursor!=current.hCursor ||
+                    next.ptScreenPos.X!=current.ptScreenPos.X ||
+                    next.ptScreenPos.Y!=current.ptScreenPos.Y));
+
+            if(!changed)return;
+
+            Rectangle dirty=Rectangle.Empty;
+            if(currentVisible)dirty=currentDrawRect;
+            if(nextVisible)dirty=dirty.IsEmpty?nextRect:Rectangle.Union(dirty,nextRect);
+            if(!dirty.IsEmpty)dirty.Inflate(3,3);
+
+            current=next;
+            currentVisible=nextVisible;
+            currentDrawRect=nextRect;
+
+            if(!dirty.IsEmpty) {
+                Invalidate(dirty);
+                Update();
+            }
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e) {
+            using(var b=new SolidBrush(BackColor))
+                e.Graphics.FillRectangle(b,e.ClipRectangle);
+        }
+
+        protected override void OnPaint(PaintEventArgs e) {
+            if(!currentVisible||current.hCursor==IntPtr.Zero)return;
+
+            IntPtr hdc=e.Graphics.GetHdc();
+            try {
+                DrawIconEx(
+                    hdc,
+                    currentDrawRect.X,currentDrawRect.Y,
+                    current.hCursor,
+                    currentDrawRect.Width,currentDrawRect.Height,
+                    0,IntPtr.Zero,DI_NORMAL);
+            }
+            finally {
+                e.Graphics.ReleaseHdc(hdc);
+            }
+        }
+    }
+
     static List<Mon> Monitors() {
         var list=new List<Mon>();
         EnumDisplayMonitors(IntPtr.Zero,IntPtr.Zero,
@@ -199,6 +376,14 @@ public sealed class MirrorV014 : Form
     IntPtr dstDC=IntPtr.Zero;
     readonly System.Windows.Forms.Timer timer;
     readonly string inputMode;
+    readonly int cursorHz;
+
+    Thread cursorOverlayThread=null;
+    CursorOverlayV0141 cursorOverlay=null;
+    readonly ManualResetEvent cursorOverlayReady=new ManualResetEvent(false);
+    volatile bool cursorOverlayAvailable=false;
+    bool timerResolutionRaised=false;
+    double lastRenderCostMs=0.0;
 
     bool inputEnabled=true;
     bool overlay=false;
@@ -262,8 +447,9 @@ public sealed class MirrorV014 : Form
 
     public static void EnableDpi(){ try{SetProcessDpiAwarenessContext(PMV2);}catch{} }
 
-    public MirrorV014(string srcName,string dstName,string mode,string requestedInputMode) {
+    public MirrorV0141(string srcName,string dstName,string mode,string requestedInputMode,int requestedCursorHz) {
         renderMode=mode;
+        cursorHz=requestedCursorHz<=60?60:(requestedCursorHz>=240?240:120);
         if(String.Equals(requestedInputMode,"legacy",StringComparison.OrdinalIgnoreCase)) inputMode="legacy";
         else if(String.Equals(requestedInputMode,"captured",StringComparison.OrdinalIgnoreCase)) inputMode="captured";
         else inputMode="portal";
@@ -278,7 +464,7 @@ public sealed class MirrorV014 : Form
         srcDC=CreateDC("DISPLAY",src.Name,null,IntPtr.Zero);
         if(srcDC==IntPtr.Zero) throw new Exception("CreateDC failed: "+src.Name);
 
-        Text="VirtualQHDMirror v0.14";
+        Text="VirtualQHDMirror v0.14.1";
         FormBorderStyle=FormBorderStyle.None;
         StartPosition=FormStartPosition.Manual;
         Bounds=dst.Rect;
@@ -299,11 +485,14 @@ public sealed class MirrorV014 : Form
         Shown+=delegate{
             Bounds=dst.Rect;
             ApplyDwmIsolation();
+            if(timeBeginPeriod(1)==0)timerResolutionRaised=true;
             dstDC=GetDC(Handle);
             if(dstDC==IntPtr.Zero) throw new Exception("GetDC failed for mirror window.");
 
             SetStretchBltMode(dstDC,HALFTONE);
             SetBrushOrgEx(dstDC,0,0,IntPtr.Zero);
+
+            StartCursorOverlay();
 
             RegisterHotKey(Handle,HK_EXIT,MOD_CONTROL|MOD_ALT,VK_F12);
             RegisterHotKey(Handle,HK_INPUT,MOD_CONTROL|MOD_ALT,VK_F11);
@@ -315,6 +504,7 @@ public sealed class MirrorV014 : Form
         };
 
         FormClosed+=delegate{
+            StopCursorOverlay();
             if(portalActive) EndPortalToDestination();
             else if(capturedInput) EndCapturedInput();
             else ReleaseCursorClip(IntPtr.Zero);
@@ -331,6 +521,7 @@ public sealed class MirrorV014 : Form
                 dstDC=IntPtr.Zero;
             }
             if(srcDC!=IntPtr.Zero) DeleteDC(srcDC);
+            if(timerResolutionRaised)timeEndPeriod(1);
         };
     }
 
@@ -369,7 +560,7 @@ public sealed class MirrorV014 : Form
             }
             if(id==HK_OVERLAY){ overlay=!overlay; return; }
             if(id==HK_MODE){
-                renderMode = renderMode=="adaptive" ? "30" : (renderMode=="30" ? "60" : "adaptive");
+                renderMode = renderMode=="adaptive" ? "30" : (renderMode=="30" ? "60" : (renderMode=="60" ? "120" : "adaptive"));
                 lastInput=DateTime.UtcNow;
                 return;
             }
@@ -387,13 +578,14 @@ public sealed class MirrorV014 : Form
     }
 
     void ApplyInterval(int ms) {
-        if(ms<8) ms=8;
+        if(ms<4) ms=4;
         if(lastInterval==ms) return;
         lastInterval=ms;
         timer.Interval=ms;
     }
 
     void AdjustInterval() {
+        if(renderMode=="120"){ ApplyInterval(8); return; }
         if(renderMode=="60"){ ApplyInterval(16); return; }
         if(renderMode=="30"){ ApplyInterval(33); return; }
 
@@ -408,8 +600,58 @@ public sealed class MirrorV014 : Form
         if(renderMode=="adaptive") ApplyInterval(16);
     }
 
+    void StartCursorOverlay() {
+        cursorOverlayReady.Reset();
+        cursorOverlayAvailable=false;
+
+        cursorOverlayThread=new Thread(delegate{
+            try {
+                var local=new CursorOverlayV0141(src.Rect,dst.Rect,cursorHz);
+                cursorOverlay=local;
+                cursorOverlayAvailable=true;
+                cursorOverlayReady.Set();
+                Application.Run(local);
+            }
+            catch {
+                cursorOverlayAvailable=false;
+                cursorOverlayReady.Set();
+            }
+            finally {
+                cursorOverlayAvailable=false;
+                cursorOverlay=null;
+            }
+        });
+        cursorOverlayThread.IsBackground=true;
+        cursorOverlayThread.Name="VirtualQHDMirror Cursor Overlay";
+        cursorOverlayThread.SetApartmentState(ApartmentState.STA);
+        cursorOverlayThread.Start();
+        cursorOverlayReady.WaitOne(1200);
+    }
+
+    void StopCursorOverlay() {
+        cursorOverlayAvailable=false;
+        try {
+            var local=cursorOverlay;
+            if(local!=null&&!local.IsDisposed&&local.IsHandleCreated) {
+                local.BeginInvoke((MethodInvoker)delegate{ local.Close(); });
+            }
+        }
+        catch {}
+
+        try {
+            if(cursorOverlayThread!=null&&cursorOverlayThread.IsAlive)
+                cursorOverlayThread.Join(800);
+        }
+        catch {}
+
+        cursorOverlayThread=null;
+        cursorOverlay=null;
+    }
+
     void DrawFrame() {
         if(dstDC==IntPtr.Zero) return;
+
+        long t0=System.Diagnostics.Stopwatch.GetTimestamp();
 
         StretchBlt(
             dstDC,
@@ -418,7 +660,12 @@ public sealed class MirrorV014 : Form
             0,0,src.Rect.Width,src.Rect.Height,
             SRCCOPY);
 
-        DrawSourceCursorIfNeeded();
+        // Fallback only: normally the cursor is rendered by a dedicated high-rate overlay.
+        if(!cursorOverlayAvailable)DrawSourceCursorIfNeeded();
+
+        long t1=System.Diagnostics.Stopwatch.GetTimestamp();
+        double ms=(t1-t0)*1000.0/System.Diagnostics.Stopwatch.Frequency;
+        lastRenderCostMs=lastRenderCostMs<=0?ms:(lastRenderCostMs*0.85+ms*0.15);
 
         if(overlay) DrawOverlay();
     }
@@ -510,8 +757,10 @@ public sealed class MirrorV014 : Form
                 inputState=inputEnabled?"LEGACY ON":"LEGACY OFF";
 
             string t=
-                "VirtualQHDMirror v0.14\n"+
+                "VirtualQHDMirror v0.14.1\n"+
                 "render: "+renderMode+" / "+(1000.0/Math.Max(1,lastInterval)).ToString("0")+" fps target\n"+
+                "render cost: "+lastRenderCostMs.ToString("0.0")+" ms\n"+
+                "cursor: "+(cursorOverlayAvailable?cursorHz.ToString()+" Hz overlay":"frame fallback")+"\n"+
                 "zone: "+lastZone+"\n"+
                 "input: "+inputState;
             var s=g.MeasureString(t,f);
@@ -1310,13 +1559,13 @@ public sealed class MirrorV014 : Form
     }
 }
 
-public static class LauncherV014
+public static class LauncherV0141
 {
     [STAThread]
-    public static void Run(string src,string dst,string mode,string inputMode) {
-        MirrorV014.EnableDpi();
-        if(String.IsNullOrWhiteSpace(src))src=MirrorV014.FindSource();
-        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV014.FindDestination();
+    public static void Run(string src,string dst,string mode,string inputMode,int cursorHz) {
+        MirrorV0141.EnableDpi();
+        if(String.IsNullOrWhiteSpace(src))src=MirrorV0141.FindSource();
+        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV0141.FindDestination();
 
         if(src==null)throw new Exception("No 2560x1440 source found.");
         if(dst==null)throw new Exception("No 1920x1080 destination found.");
@@ -1325,16 +1574,17 @@ public static class LauncherV014
         Console.WriteLine("Destination: "+dst);
         Console.WriteLine("Render mode: "+mode);
         Console.WriteLine("Input mode: "+inputMode);
+        Console.WriteLine("Cursor polling: "+cursorHz+" Hz");
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MirrorV014(src,dst,mode,inputMode));
+        Application.Run(new MirrorV0141(src,dst,mode,inputMode,cursorHz));
     }
 }
 '@
 
     Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies "System.Windows.Forms","System.Drawing"
-    [LauncherV014]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode)
+    [LauncherV0141]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode,$CursorHz)
 }
 catch {
     Write-Host ""
