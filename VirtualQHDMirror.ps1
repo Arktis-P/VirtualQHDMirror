@@ -2,7 +2,9 @@ param(
     [string]$SourceDevice = "",
     [string]$DestinationDevice = "",
     [ValidateSet("adaptive","30","60")]
-    [string]$Mode = "adaptive"
+    [string]$Mode = "adaptive",
+    [ValidateSet("captured","legacy")]
+    [string]$InputMode = "captured"
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +21,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-public sealed class MirrorV0131 : Form
+public sealed class MirrorV014 : Form
 {
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc cb, IntPtr data);
@@ -51,6 +53,8 @@ public sealed class MirrorV0131 : Form
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd,int cmd);
     [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] static extern bool SetCursorPos(int x,int y);
+    [DllImport("user32.dll")] static extern bool ClipCursor(ref RECT rect);
+    [DllImport("user32.dll", EntryPoint="ClipCursor")] static extern bool ReleaseCursorClip(IntPtr rect);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint processId);
     [DllImport("user32.dll")] static extern bool GetIconInfo(IntPtr hIcon,out ICONINFO info);
@@ -105,6 +109,7 @@ public sealed class MirrorV0131 : Form
     const uint MOUSEEVENTF_MIDDLEUP=0x0040;
     const uint MOUSEEVENTF_XDOWN=0x0080;
     const uint MOUSEEVENTF_XUP=0x0100;
+    const uint MOUSEEVENTF_WHEEL=0x0800;
     const uint MOUSEEVENTF_VIRTUALDESK=0x4000;
     const uint MOUSEEVENTF_ABSOLUTE=0x8000;
 
@@ -193,9 +198,17 @@ public sealed class MirrorV0131 : Form
     readonly IntPtr srcDC;
     IntPtr dstDC=IntPtr.Zero;
     readonly System.Windows.Forms.Timer timer;
+    readonly string inputMode;
 
     bool inputEnabled=true;
     bool overlay=false;
+
+    bool capturedInput=false;
+    bool capturePending=false;
+    MouseButtons capturePendingButton=MouseButtons.None;
+    POINT captureReturnPoint;
+    POINT lastCapturedCursor;
+    bool lastCapturedCursorValid=false;
 
     IntPtr dragTarget=IntPtr.Zero;
     int mouseButtons=0;
@@ -236,8 +249,9 @@ public sealed class MirrorV0131 : Form
 
     public static void EnableDpi(){ try{SetProcessDpiAwarenessContext(PMV2);}catch{} }
 
-    public MirrorV0131(string srcName,string dstName,string mode) {
+    public MirrorV014(string srcName,string dstName,string mode,string requestedInputMode) {
         renderMode=mode;
+        inputMode=String.Equals(requestedInputMode,"legacy",StringComparison.OrdinalIgnoreCase)?"legacy":"captured";
 
         foreach(var m in Monitors()) {
             if(String.Equals(m.Name,srcName,StringComparison.OrdinalIgnoreCase)) src=m;
@@ -249,7 +263,7 @@ public sealed class MirrorV0131 : Form
         srcDC=CreateDC("DISPLAY",src.Name,null,IntPtr.Zero);
         if(srcDC==IntPtr.Zero) throw new Exception("CreateDC failed: "+src.Name);
 
-        Text="VirtualQHDMirror v0.13.1";
+        Text="VirtualQHDMirror v0.14";
         FormBorderStyle=FormBorderStyle.None;
         StartPosition=FormStartPosition.Manual;
         Bounds=dst.Rect;
@@ -261,7 +275,8 @@ public sealed class MirrorV0131 : Form
         timer=new System.Windows.Forms.Timer();
         timer.Tick+=delegate{
             AdjustInterval();
-            UpdateNativeInteraction();
+            if(inputMode=="captured") UpdateCapturedInput();
+            else UpdateNativeInteraction();
             DrawFrame();
         };
 
@@ -284,6 +299,8 @@ public sealed class MirrorV0131 : Form
         };
 
         FormClosed+=delegate{
+            if(capturedInput) EndCapturedInput();
+            else ReleaseCursorClip(IntPtr.Zero);
             if(nativeInteraction) EndNativeInteraction();
             timer.Stop();
 
@@ -308,8 +325,24 @@ public sealed class MirrorV0131 : Form
     protected override void WndProc(ref Message m) {
         if(m.Msg==WM_HOTKEY) {
             int id=m.WParam.ToInt32();
-            if(id==HK_EXIT){ Close(); return; }
+            if(id==HK_EXIT){
+                if(capturedInput) EndCapturedInput();
+                Close();
+                return;
+            }
             if(id==HK_INPUT){
+                if(inputMode=="captured") {
+                    if(capturedInput) {
+                        EndCapturedInput();
+                    }
+                    else {
+                        capturePending=false;
+                        inputEnabled=!inputEnabled;
+                        lastZone=inputEnabled?"ARMED":"OFF";
+                    }
+                    return;
+                }
+
                 if(nativeInteraction) EndNativeInteraction();
                 pendingNativeClick=false;
                 pendingCaptionCommand=false;
@@ -451,11 +484,17 @@ public sealed class MirrorV0131 : Form
         using(var bg=new SolidBrush(Color.FromArgb(180,0,0,0)))
         using(var fg=new SolidBrush(Color.White))
         using(var f=new Font("Consolas",10)) {
+            string inputState;
+            if(inputMode=="captured")
+                inputState=capturedInput?"CAPTURED":(inputEnabled?"ARMED":"OFF");
+            else
+                inputState=inputEnabled?"LEGACY ON":"LEGACY OFF";
+
             string t=
-                "VirtualQHDMirror v0.13.1\n"+
+                "VirtualQHDMirror v0.14\n"+
                 "render: "+renderMode+" / "+(1000.0/Math.Max(1,lastInterval)).ToString("0")+" fps target\n"+
                 "zone: "+lastZone+"\n"+
-                "input: "+(inputEnabled?"ON":"OFF");
+                "input: "+inputState;
             var s=g.MeasureString(t,f);
             g.FillRectangle(bg,10,10,s.Width+14,s.Height+10);
             g.DrawString(t,f,fg,17,15);
@@ -544,6 +583,97 @@ public sealed class MirrorV0131 : Form
         lastLeftClickPoint=sp;
         lastLeftClickRoot=root;
         return ok;
+    }
+
+    RECT SourceClipRect() {
+        return new RECT {
+            left=src.Rect.Left,
+            top=src.Rect.Top,
+            right=src.Rect.Right,
+            bottom=src.Rect.Bottom
+        };
+    }
+
+    bool AcquireCapturedInput(POINT sourcePoint) {
+        if(capturedInput)return true;
+
+        POINT old;
+        if(!GetCursorPos(out old))
+            old=MapSourceToDestination(sourcePoint);
+
+        RECT clip=SourceClipRect();
+        if(!ClipCursor(ref clip))return false;
+
+        captureReturnPoint=old;
+        capturedInput=true;
+        capturePending=false;
+        lastCapturedCursor=sourcePoint;
+        lastCapturedCursorValid=true;
+        lastZone="CAPTURED";
+
+        SendAbsoluteMouseMove(sourcePoint);
+        MarkInput();
+        return true;
+    }
+
+    void BeginCapturedClick(POINT sourcePoint,MouseButtons button) {
+        if(!AcquireCapturedInput(sourcePoint))return;
+
+        Application.DoEvents();
+        Thread.Sleep(15);
+        SendNativeButton(button,true);
+        Thread.Sleep(15);
+        SendNativeButton(button,false);
+        MarkInput();
+    }
+
+    void SendNativeWheel(int delta) {
+        INPUT[] input=new INPUT[1];
+        input[0].type=INPUT_MOUSE;
+        input[0].U.mi.mouseData=unchecked((uint)delta);
+        input[0].U.mi.dwFlags=MOUSEEVENTF_WHEEL;
+        SendInput(1,input,Marshal.SizeOf(typeof(INPUT)));
+    }
+
+    void EndCapturedInput() {
+        POINT current;
+        bool haveCurrent=GetCursorPos(out current);
+
+        ReleaseCursorClip(IntPtr.Zero);
+        capturedInput=false;
+        capturePending=false;
+        lastCapturedCursorValid=false;
+
+        POINT destination=captureReturnPoint;
+        if(haveCurrent&&IsSourcePoint(current))
+            destination=MapSourceToDestination(current);
+
+        SendAbsoluteMouseMove(destination);
+        lastZone=inputEnabled?"ARMED":"OFF";
+        MarkInput();
+    }
+
+    void UpdateCapturedInput() {
+        if(!capturedInput)return;
+
+        POINT p;
+        if(!GetCursorPos(out p))return;
+
+        if(!IsSourcePoint(p)) {
+            ReleaseCursorClip(IntPtr.Zero);
+            capturedInput=false;
+            capturePending=false;
+            lastCapturedCursorValid=false;
+            lastZone=inputEnabled?"ARMED":"OFF";
+            return;
+        }
+
+        if(!lastCapturedCursorValid ||
+           p.X!=lastCapturedCursor.X || p.Y!=lastCapturedCursor.Y) {
+            lastCapturedCursor=p;
+            lastCapturedCursorValid=true;
+            MarkInput();
+        }
     }
 
     bool IsShellWindow(IntPtr hwnd) {
@@ -749,6 +879,13 @@ public sealed class MirrorV0131 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="captured") {
+            lastZone=inputEnabled?"ARMED":"OFF";
+            base.OnMouseMove(e);
+            return;
+        }
+
         lastZone=IsTaskbarZone(lastMapped)?"TASKBAR":"DESKTOP";
 
         if(inputEnabled) {
@@ -765,6 +902,15 @@ public sealed class MirrorV0131 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="captured") {
+            lastZone=inputEnabled?"ARMED":"OFF";
+            capturePending=inputEnabled&&!capturedInput;
+            capturePendingButton=e.Button;
+            base.OnMouseDown(e);
+            return;
+        }
+
         lastZone=IsTaskbarZone(lastMapped)?"TASKBAR":"DESKTOP";
 
         if(!inputEnabled){base.OnMouseDown(e);return;}
@@ -840,6 +986,16 @@ public sealed class MirrorV0131 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="captured") {
+            lastZone=inputEnabled?"ARMED":"OFF";
+            bool acquire=capturePending&&inputEnabled&&!capturedInput&&e.Button==capturePendingButton;
+            capturePending=false;
+            if(acquire)BeginCapturedClick(lastMapped,e.Button);
+            base.OnMouseUp(e);
+            return;
+        }
+
         lastZone=IsTaskbarZone(lastMapped)?"TASKBAR":"DESKTOP";
 
         if(!inputEnabled){
@@ -933,6 +1089,18 @@ public sealed class MirrorV0131 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="captured") {
+            lastZone=inputEnabled?"ARMED":"OFF";
+            if(inputEnabled&&!capturedInput&&AcquireCapturedInput(lastMapped)) {
+                Application.DoEvents();
+                Thread.Sleep(10);
+                SendNativeWheel(e.Delta);
+            }
+            base.OnMouseWheel(e);
+            return;
+        }
+
         lastZone=IsTaskbarZone(lastMapped)?"TASKBAR":"DESKTOP";
 
         if(inputEnabled&&!IsTaskbarZone(lastMapped)) {
@@ -959,13 +1127,13 @@ public sealed class MirrorV0131 : Form
     }
 }
 
-public static class LauncherV0131
+public static class LauncherV014
 {
     [STAThread]
-    public static void Run(string src,string dst,string mode) {
-        MirrorV0131.EnableDpi();
-        if(String.IsNullOrWhiteSpace(src))src=MirrorV0131.FindSource();
-        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV0131.FindDestination();
+    public static void Run(string src,string dst,string mode,string inputMode) {
+        MirrorV014.EnableDpi();
+        if(String.IsNullOrWhiteSpace(src))src=MirrorV014.FindSource();
+        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV014.FindDestination();
 
         if(src==null)throw new Exception("No 2560x1440 source found.");
         if(dst==null)throw new Exception("No 1920x1080 destination found.");
@@ -973,16 +1141,17 @@ public static class LauncherV0131
         Console.WriteLine("Source: "+src);
         Console.WriteLine("Destination: "+dst);
         Console.WriteLine("Render mode: "+mode);
+        Console.WriteLine("Input mode: "+inputMode);
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MirrorV0131(src,dst,mode));
+        Application.Run(new MirrorV014(src,dst,mode,inputMode));
     }
 }
 '@
 
     Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies "System.Windows.Forms","System.Drawing"
-    [LauncherV0131]::Run($SourceDevice,$DestinationDevice,$Mode)
+    [LauncherV014]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode)
 }
 catch {
     Write-Host ""

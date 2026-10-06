@@ -1,6 +1,6 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
-기준 버전: **v0.13.1 prototype**
+기준 버전: **v0.14 development prototype**
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -597,6 +597,15 @@ branch 정책 제안:
 - 표준 caption button 직접 처리
 - custom chrome / shell용 virtual-desktop absolute SendInput fallback
 - cursor hotspot 보정
+
+### v0.14
+
+- captured native input 기본 경로
+- 실제 Windows cursor를 virtual source에 유지하고 `ClipCursor`로 source monitor에 제한
+- 일반 mouse/shell/title-bar 동작을 Windows native input에 위임
+- source cursor shape/hotspot을 destination에 software-render
+- v0.13.1 입력 경로를 legacy fallback으로 유지
+- 실기기 검증 후 pointer travel scaling 필요 여부 결정
 
 ### v0.20
 
