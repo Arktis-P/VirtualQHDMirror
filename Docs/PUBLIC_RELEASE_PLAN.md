@@ -8,8 +8,8 @@
 
 - ✅ v0.14.1 runnable fallback 보존 (`archive/v0.14.1/`)
 - ✅ v0.20 .NET 8/WPF solution bootstrap
-- 🔄 다음 구현: read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery**
-- ⏭ 그 다음 P0: virtual display driver 전략 확정 + 설치/복구/제거 안내
+- 🟡 read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery** 기본 구현 완료 — 실제 IDD/물리 모니터 분류 검증 대기
+- ⏭ 다음 P0: 현재 사용 중인 virtual display driver 식별 결과 검증 후 드라이버 전략 확정 + 설치/복구/제거 안내
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -732,7 +732,7 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 현재 기준에서 가장 효율적인 순서:
 
 1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
-2. 🔄 **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery**
+2. 🟡 **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery** — 구현 완료, 대상 PC 검증 필요
 3. **virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440 제공 방식 확인
 4. **공개용 드라이버 설치·복구·제거 안내 작성** + DriverManager의 read-only 상태 확인
 5. v0.14.1 GDI renderer를 정식 app에 이식
