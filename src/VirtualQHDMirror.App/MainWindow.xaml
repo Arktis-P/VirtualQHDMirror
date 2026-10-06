@@ -47,6 +47,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -62,6 +63,15 @@
                     <TextBlock FontWeight="SemiBold"
                                Text="Detected physical destination" />
                     <TextBlock x:Name="PhysicalSummaryText"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2"
+                            Margin="24,0,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Virtual display driver" />
+                    <TextBlock x:Name="DriverSummaryText"
                                Margin="0,6,0,0"
                                TextWrapping="Wrap" />
                 </StackPanel>

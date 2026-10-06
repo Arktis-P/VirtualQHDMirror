@@ -8,8 +8,9 @@
 
 - ✅ v0.14.1 runnable fallback 보존 (`archive/v0.14.1/`)
 - ✅ v0.20 .NET 8/WPF solution bootstrap
-- 🟡 read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery** 기본 구현 완료 — 실제 IDD/물리 모니터 분류 검증 대기
-- ⏭ 다음 P0: 현재 사용 중인 virtual display driver 식별 결과 검증 후 드라이버 전략 확정 + 설치/복구/제거 안내
+- ✅ read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery** — 실제 IDD/물리 모니터 식별 및 v0.14.1 mirror handoff 검증 완료
+- 🔄 **DriverManager read-only probe** — IddSampleDriver 계열 설치/활성/config/QHD mode 상태 확인
+- ⏭ 다음 P0: public driver signing/distribution 전략 확정 + 설치/복구/제거 경로
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -742,14 +743,15 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 현재 기준에서 가장 효율적인 순서:
 
 1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
-2. 🟡 **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery** — 구현 완료, 대상 PC 검증 필요
-3. **virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440 제공 방식 확인
-4. **공개용 드라이버 설치·복구·제거 안내 작성** + DriverManager의 read-only 상태 확인
-5. v0.14.1 GDI renderer를 정식 app에 이식
-6. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
-7. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
-8. D3D11 / Windows Graphics Capture backend + reconnect/recovery
-9. tray / startup / diagnostics + installer/uninstall/rollback
-10. fresh-PC external alpha
+2. ✅ **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery** — 현재 개발 PC 실동작 검증 완료
+3. 🔄 **DriverManager read-only 상태 확인** + IddSampleDriver 개발 호환 baseline
+4. **public virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440·다중 monitor 제공 방식
+5. **공개용 드라이버 설치·복구·제거 안내 작성**
+6. v0.14.1 GDI renderer를 정식 app에 이식
+7. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
+8. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
+9. D3D11 / Windows Graphics Capture backend + reconnect/recovery
+10. tray / startup / diagnostics + installer/uninstall/rollback
+11. fresh-PC external alpha
 
 핵심 원칙은 **현재 동작하는 v0.14.1 코어를 유지한 채, 일반 사용자가 설치하고 올바른 디스플레이를 선택할 수 있게 만드는 외곽 계층부터 추가하는 것**이다. 공개화 migration이 기능 parity에 도달하기 전까지 기존 PowerShell 실행 경로를 제거하지 않는다.

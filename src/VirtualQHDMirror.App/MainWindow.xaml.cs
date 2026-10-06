@@ -1,12 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
 using VirtualQHDMirror.Core.Displays;
+using VirtualQHDMirror.DriverManager;
 
 namespace VirtualQHDMirror.App;
 
 public partial class MainWindow : Window
 {
     private readonly DisplayDiscoveryService _displayDiscovery = new();
+    private readonly DriverEnvironmentProbe _driverProbe = new();
     private readonly LegacyMirrorProcessController _mirrorController = new();
 
     public MainWindow()
@@ -97,6 +99,9 @@ public partial class MainWindow : Window
         try
         {
             var result = _displayDiscovery.DiscoverActiveDisplays();
+            var driverReport = _driverProbe.Probe(result.VirtualDisplays);
+
+            DriverSummaryText.Text = driverReport.Summary;
 
             DisplayList.ItemsSource = result.Displays.Select(display => new
             {
@@ -162,6 +167,7 @@ public partial class MainWindow : Window
             PhysicalDestinationComboBox.ItemsSource = null;
             VirtualSummaryText.Text = "Display discovery failed.";
             PhysicalSummaryText.Text = "Display discovery failed.";
+            DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
         }

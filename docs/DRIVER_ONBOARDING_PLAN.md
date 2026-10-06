@@ -118,8 +118,18 @@ Minimum driver onboarding validation:
 - multiple physical monitors,
 - driver present but required virtual mode missing.
 
-## Current next dependency
+## Current status
 
-The immediate code task is **read-only System Preflight + QueryDisplayConfig-based DisplayDiscovery**.
+Display discovery and real mirror handoff were validated on the current Windows development machine.
 
-That work provides the stable device identity and status information required both by VQM itself and by later driver installation guidance. Driver packaging/automatic installation should not begin until the driver strategy gate above is resolved.
+The next implemented layer is a **read-only DriverManager probe**:
+
+- enumerate present Windows Display-class devices with SetupAPI,
+- identify IddSampleDriver-compatible device descriptions / hardware IDs,
+- correlate installed-device evidence with active virtual displays,
+- read the ge9-style machine configuration path from `IDD_SAMPLE_DRIVER_CONFIG` or `C:\IddSampleDriver\option.txt`,
+- report configured virtual-monitor count,
+- verify that 2560×1440 exists in the configured modes,
+- make no installation, registry, driver-state, or security changes.
+
+Automatic installation remains blocked behind the driver strategy/signing gate.
