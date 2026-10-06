@@ -18,6 +18,10 @@ try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
+    # WinForms global defaults must be configured before the first control/window is created.
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+    [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
+
     $startupForm = New-Object System.Windows.Forms.Form
     $startupForm.Text = "VirtualQHDMirror v0.14.1"
     $startupForm.StartPosition = "CenterScreen"
@@ -1614,8 +1618,6 @@ public static class LauncherV0141
         Console.WriteLine("Input mode: "+inputMode);
         Console.WriteLine("Cursor polling: "+cursorHz+" Hz");
 
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new MirrorV0141(src,dst,mode,inputMode,cursorHz));
     }
 }
