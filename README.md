@@ -5,7 +5,7 @@ VirtualQHDMirror mirrors a virtual 2560x1440 Windows desktop onto a physical 192
 ## Current development baseline
 
 - Version: v0.14.1
-- Branch: v0.14.1
+- Branch: v0.14
 - Target topology: 1 | 2 | 3
   - 1: laptop display
   - 2: physical FHD mirror
