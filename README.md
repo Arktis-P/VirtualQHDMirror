@@ -73,3 +73,10 @@ The software cursor is no longer tied to the full QHD-to-FHD StretchBlt cadence.
 Use -CursorHz 60, 120, or 240 for comparison. 120 Hz is the default balance.
 
 The 120 FPS full-frame mode is experimental. On a 60 Hz physical monitor it can reduce frame age slightly, but it cannot display more than the monitor refresh rate and it increases GDI copy load.
+
+
+## v0.14.1 startup UI
+
+Startup now uses a small WinForms loading window while the embedded mirror engine is prepared. Startup errors are shown in a GUI error dialog instead of waiting for console input.
+
+A dedicated no-console launcher is the intended normal-use entry point; the CMD launchers remain useful for diagnostics and fixed-FPS testing.

@@ -11,9 +11,47 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$startupForm = $null
+$startupLabel = $null
+
 try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
+
+    $startupForm = New-Object System.Windows.Forms.Form
+    $startupForm.Text = "VirtualQHDMirror v0.14.1"
+    $startupForm.StartPosition = "CenterScreen"
+    $startupForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $startupForm.MaximizeBox = $false
+    $startupForm.MinimizeBox = $false
+    $startupForm.ControlBox = $false
+    $startupForm.ShowInTaskbar = $false
+    $startupForm.TopMost = $true
+    $startupForm.ClientSize = New-Object System.Drawing.Size(420, 132)
+
+    $startupTitle = New-Object System.Windows.Forms.Label
+    $startupTitle.Text = "VirtualQHDMirror"
+    $startupTitle.Font = New-Object System.Drawing.Font("Segoe UI", 15, [System.Drawing.FontStyle]::Bold)
+    $startupTitle.AutoSize = $true
+    $startupTitle.Location = New-Object System.Drawing.Point(22, 18)
+    $startupForm.Controls.Add($startupTitle)
+
+    $startupLabel = New-Object System.Windows.Forms.Label
+    $startupLabel.Text = "Preparing mirror engine..."
+    $startupLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $startupLabel.AutoSize = $true
+    $startupLabel.Location = New-Object System.Drawing.Point(24, 58)
+    $startupForm.Controls.Add($startupLabel)
+
+    $startupProgress = New-Object System.Windows.Forms.ProgressBar
+    $startupProgress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+    $startupProgress.MarqueeAnimationSpeed = 24
+    $startupProgress.Location = New-Object System.Drawing.Point(25, 87)
+    $startupProgress.Size = New-Object System.Drawing.Size(370, 18)
+    $startupForm.Controls.Add($startupProgress)
+
+    $startupForm.Show()
+    [System.Windows.Forms.Application]::DoEvents()
 
     $code = @'
 using System;
@@ -1583,13 +1621,58 @@ public static class LauncherV0141
 }
 '@
 
+    if ($startupLabel) {
+        $startupLabel.Text = "Compiling mirror engine..."
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
     Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies "System.Windows.Forms","System.Drawing"
+
+    if ($startupLabel) {
+        $startupLabel.Text = "Detecting displays and starting Portal..."
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    if ($startupForm -and -not $startupForm.IsDisposed) {
+        $startupForm.Close()
+        $startupForm.Dispose()
+        $startupForm = $null
+    }
+
     [LauncherV0141]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode,$CursorHz)
 }
 catch {
-    Write-Host ""
-    Write-Host "ERROR:" -ForegroundColor Red
-    Write-Host $_.Exception.ToString() -ForegroundColor Red
-    Read-Host "Press Enter to close"
+    try {
+        if ($startupForm -and -not $startupForm.IsDisposed) {
+            $startupForm.Close()
+            $startupForm.Dispose()
+        }
+    } catch {}
+
+    $message = $_.Exception.Message
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = $_.Exception.ToString()
+    }
+
+    try {
+        [System.Windows.Forms.MessageBox]::Show(
+            "VirtualQHDMirror could not start.`r`n`r`n" + $message,
+            "VirtualQHDMirror v0.14.1",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    }
+    catch {
+        Write-Error $message
+    }
+
     exit 1
+}
+finally {
+    try {
+        if ($startupForm -and -not $startupForm.IsDisposed) {
+            $startupForm.Close()
+            $startupForm.Dispose()
+        }
+    } catch {}
 }

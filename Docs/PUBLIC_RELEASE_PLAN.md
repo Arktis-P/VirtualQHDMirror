@@ -619,6 +619,7 @@ branch 정책 제안:
 - 전체 렌더 Adaptive / 30 / 60 / 실험적 120 FPS 지원
 - 1 ms timer resolution 요청으로 prototype frame pacing 개선
 - diagnostic overlay에 render cost / cursor path 표시
+- WinForms startup loader + GUI error dialog
 
 ### v0.20
 
