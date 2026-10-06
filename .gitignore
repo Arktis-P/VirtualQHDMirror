@@ -1,0 +1,17 @@
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local diagnostics / settings
+*.log
+.vqm/

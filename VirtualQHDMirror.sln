@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.App", "src\VirtualQHDMirror.App\VirtualQHDMirror.App.csproj", "{47E8920B-9FB0-4ED6-A066-DB522EC4B886}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.Core", "src\VirtualQHDMirror.Core\VirtualQHDMirror.Core.csproj", "{979DCD04-88E1-4B49-92B8-909C86C6A8D0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.DriverManager", "src\VirtualQHDMirror.DriverManager\VirtualQHDMirror.DriverManager.csproj", "{C51DB35A-69F4-4D78-A8B9-7CB8207F97B8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{47E8920B-9FB0-4ED6-A066-DB522EC4B886}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47E8920B-9FB0-4ED6-A066-DB522EC4B886}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47E8920B-9FB0-4ED6-A066-DB522EC4B886}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47E8920B-9FB0-4ED6-A066-DB522EC4B886}.Release|Any CPU.Build.0 = Release|Any CPU
+		{979DCD04-88E1-4B49-92B8-909C86C6A8D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{979DCD04-88E1-4B49-92B8-909C86C6A8D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{979DCD04-88E1-4B49-92B8-909C86C6A8D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{979DCD04-88E1-4B49-92B8-909C86C6A8D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C51DB35A-69F4-4D78-A8B9-7CB8207F97B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C51DB35A-69F4-4D78-A8B9-7CB8207F97B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C51DB35A-69F4-4D78-A8B9-7CB8207F97B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C51DB35A-69F4-4D78-A8B9-7CB8207F97B8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

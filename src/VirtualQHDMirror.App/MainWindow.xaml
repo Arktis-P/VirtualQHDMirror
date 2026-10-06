@@ -1,0 +1,46 @@
+<Window x:Class="VirtualQHDMirror.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="VirtualQHDMirror"
+        Width="520"
+        Height="320"
+        MinWidth="460"
+        MinHeight="280"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock FontSize="24"
+                   FontWeight="SemiBold"
+                   Text="VirtualQHDMirror" />
+
+        <TextBlock Grid.Row="1"
+                   Margin="0,4,0,20"
+                   Foreground="DimGray"
+                   Text="v0.20 development shell" />
+
+        <Border Grid.Row="2"
+                Padding="16"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Text="Public-release migration has started." />
+                <TextBlock Margin="0,8,0,0"
+                           TextWrapping="Wrap"
+                           Text="The v0.14.1 PowerShell implementation remains the runnable fallback while display discovery, rendering, input, and driver management are migrated into .NET modules." />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="3"
+                   Margin="0,16,0,0"
+                   Foreground="DimGray"
+                   Text="Next: QueryDisplayConfig-based display discovery" />
+    </Grid>
+</Window>
