@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -212,20 +213,14 @@ internal sealed class LegacyMirrorProcessController : IDisposable
             }
         }
 
-        var existingProcessIds = FindLegacyMirrorProcessIds();
+        var existingState = DetectExistingSession();
 
-        if (existingProcessIds.Count > 0)
+        if (existingState != LegacyMirrorSessionState.None)
         {
-            lock (_gate)
-            {
-                _detectedSessionCount = existingProcessIds.Count;
-                _attachedFromDiscovery = false;
-            }
-
             throw new InvalidOperationException(
-                existingProcessIds.Count == 1
-                    ? "An existing v0.14.1 mirror session is already running. Reopen or refresh v0.20 so it can attach to that session."
-                    : $"{existingProcessIds.Count} existing v0.14.1 mirror sessions are already running. VQM will not start another session automatically.");
+                existingState == LegacyMirrorSessionState.Attached
+                    ? "An existing v0.14.1 mirror session was found and attached. Use Stop Mirror to control it instead of starting a duplicate."
+                    : $"{DetectedSessionCount} existing v0.14.1 mirror sessions are already running. VQM will not start another session automatically.");
         }
 
         lock (_gate)
@@ -422,6 +417,14 @@ internal sealed class LegacyMirrorProcessController : IDisposable
             catch (ArgumentException)
             {
                 // The process exited between window enumeration and lookup.
+            }
+            catch (InvalidOperationException)
+            {
+                // The process became unavailable while reading its metadata.
+            }
+            catch (Win32Exception)
+            {
+                // Do not fail the whole probe if one unrelated process cannot be inspected.
             }
 
             return true;

@@ -30,6 +30,7 @@ public partial class MainWindow : Window
 
     private void RefreshDisplays_Click(object sender, RoutedEventArgs e)
     {
+        _mirrorController.DetectExistingSession();
         RefreshDisplays();
     }
 
