@@ -33,7 +33,7 @@ This runs:
 src/VirtualQHDMirror.App/VirtualQHDMirror.App.csproj
 ```
 
-and currently opens the display-preflight UI that identifies active Physical / Virtual / Unknown displays and assesses available FHD↔QHD pair topology.
+and opens the v0.20 display setup UI. It identifies active Physical / Virtual / Unknown displays, lets the user choose a Virtual QHD ↔ Physical FHD pair, and can start that pair through the frozen v0.14.1 Portal engine while the .NET mirror engine is still being migrated.
 
 `run-v020.cmd` requires the .NET 8 SDK during development.
 

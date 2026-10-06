@@ -198,6 +198,8 @@ public partial class MainWindow : Window
         StopMirrorButton.IsEnabled = running;
         VirtualSourceComboBox.IsEnabled = !running;
         PhysicalDestinationComboBox.IsEnabled = !running;
+        RefreshButton.IsEnabled = !running;
+
         if (running)
         {
             MirrorStateText.Text =
@@ -223,7 +225,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Dispatcher.BeginInvoke(UpdateMirrorControls);
+        Dispatcher.BeginInvoke(new Action(UpdateMirrorControls));
     }
 
     private sealed record DisplayChoice(

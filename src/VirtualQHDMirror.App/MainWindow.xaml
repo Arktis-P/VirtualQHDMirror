@@ -27,7 +27,8 @@
                            Text="v0.20 display setup + stable mirror bridge" />
             </StackPanel>
 
-            <Button DockPanel.Dock="Right"
+            <Button x:Name="RefreshButton"
+                    DockPanel.Dock="Right"
                     Width="110"
                     Height="32"
                     Margin="16,0,0,0"
