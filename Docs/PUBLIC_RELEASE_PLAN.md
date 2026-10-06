@@ -1,6 +1,6 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
-기준 버전: **v0.12 prototype**
+기준 버전: **v0.13.1 prototype**
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -8,7 +8,7 @@
 
 ## 1. 현재 기준선
 
-v0.12에서 확보된 기능:
+v0.13.1에서 확보된 기능:
 
 - 2560×1440 가상 디스플레이를 1920×1080 물리 모니터에 축소 표시
 - 2번 물리 화면에서 3번 가상 화면으로 마우스 입력 전달
@@ -19,7 +19,10 @@ v0.12에서 확보된 기능:
 - 제목 표시줄 드래그
 - 제목 표시줄 더블클릭 최대화/복원
 - 작업 표시줄 클릭 보조
+- 표준 최소화 / 최대화·복원 / 닫기 버튼의 non-client hit-test + system command 처리
 - Unity / Electron 등 일부 커스텀 타이틀바용 실제 입력 주입 fallback
+- DWM Peek에서 mirror window 제외
+- virtual-desktop absolute SendInput 기반 native pointer fallback
 - Per-Monitor DPI Aware V2
 - adaptive 60 / 30 / 15 FPS
 - 출력 DC 재사용
@@ -93,8 +96,11 @@ VirtualQHDMirror/
 │  └─ VirtualDisplay/
 ├─ installer/
 ├─ Docs/
+├─ VirtualQHDMirror.ps1
+├─ run.cmd
+├─ scripts/
 ├─ prototype/
-│  └─ v0.12/
+│  └─ v0.12/   # frozen historical baseline
 ├─ .github/
 │  └─ workflows/
 ├─ LICENSE
@@ -582,7 +588,15 @@ branch 정책 제안:
 
 ### v0.12
 
-현재 PowerShell PoC baseline
+동작 비교용으로 고정된 초기 PowerShell PoC baseline
+
+### v0.13.1
+
+- 현재 루트 실행 기준선
+- DWM Peek 격리
+- 표준 caption button 직접 처리
+- custom chrome / shell용 virtual-desktop absolute SendInput fallback
+- cursor hotspot 보정
 
 ### v0.20
 
@@ -670,7 +684,7 @@ branch 정책 제안:
 
 현재 기준에서 가장 효율적인 순서:
 
-1. v0.12 prototype 고정
+1. v0.12 historical baseline 유지 + 루트 v0.13.1 회귀 테스트
 2. .NET solution 생성
 3. QueryDisplayConfig 기반 DisplayDiscovery 구현
 4. v0.12 GDI renderer를 정식 app에 이식

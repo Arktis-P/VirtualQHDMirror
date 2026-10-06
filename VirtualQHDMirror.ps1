@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-public sealed class MirrorV013 : Form
+public sealed class MirrorV0131 : Form
 {
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc cb, IntPtr data);
@@ -55,7 +55,9 @@ public sealed class MirrorV013 : Form
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint processId);
     [DllImport("user32.dll")] static extern bool GetIconInfo(IntPtr hIcon,out ICONINFO info);
     [DllImport("user32.dll")] static extern uint SendInput(uint nInputs,INPUT[] inputs,int cbSize);
+    [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] static extern bool GetCursorInfo(ref CURSORINFO info);
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int valueSize);
     [DllImport("user32.dll")] static extern bool DrawIconEx(
         IntPtr hdc,int x,int y,IntPtr hIcon,int w,int h,uint step,IntPtr brush,uint flags);
 
@@ -70,9 +72,11 @@ public sealed class MirrorV013 : Form
     const uint WM_XBUTTONDOWN=0x020B, WM_XBUTTONUP=0x020C;
     const uint WM_NCHITTEST=0x0084;
     const uint WM_NCLBUTTONDOWN=0x00A1, WM_NCLBUTTONUP=0x00A2;
+    const uint WM_SYSCOMMAND=0x0112;
     const uint WM_HOTKEY=0x0312;
 
-    const int HTCLIENT=1, HTCAPTION=2;
+    const int HTCLIENT=1, HTCAPTION=2, HTMINBUTTON=8, HTMAXBUTTON=9, HTCLOSE=20;
+    const int SC_MINIMIZE=0xF020, SC_MAXIMIZE=0xF030, SC_CLOSE=0xF060, SC_RESTORE=0xF120;
     const int MK_LBUTTON=1, MK_RBUTTON=2, MK_MBUTTON=0x10;
     const int MK_XBUTTON1=0x20, MK_XBUTTON2=0x40;
     const int XBUTTON1=1, XBUTTON2=2;
@@ -85,11 +89,14 @@ public sealed class MirrorV013 : Form
     const uint SWP_NOSIZE=0x0001, SWP_NOZORDER=0x0004, SWP_NOACTIVATE=0x0010;
 
     const int SW_RESTORE=9, SW_MAXIMIZE=3;
+    const int SM_XVIRTUALSCREEN=76, SM_YVIRTUALSCREEN=77, SM_CXVIRTUALSCREEN=78, SM_CYVIRTUALSCREEN=79;
+    const int DWMWA_DISALLOW_PEEK=11, DWMWA_EXCLUDED_FROM_PEEK=12;
 
     const uint CURSOR_SHOWING=0x00000001;
     const uint DI_NORMAL=0x0003;
 
     const uint INPUT_MOUSE=0;
+    const uint MOUSEEVENTF_MOVE=0x0001;
     const uint MOUSEEVENTF_LEFTDOWN=0x0002;
     const uint MOUSEEVENTF_LEFTUP=0x0004;
     const uint MOUSEEVENTF_RIGHTDOWN=0x0008;
@@ -98,6 +105,8 @@ public sealed class MirrorV013 : Form
     const uint MOUSEEVENTF_MIDDLEUP=0x0040;
     const uint MOUSEEVENTF_XDOWN=0x0080;
     const uint MOUSEEVENTF_XUP=0x0100;
+    const uint MOUSEEVENTF_VIRTUALDESK=0x4000;
+    const uint MOUSEEVENTF_ABSOLUTE=0x8000;
 
     static readonly IntPtr PMV2=new IntPtr(-4);
 
@@ -214,6 +223,10 @@ public sealed class MirrorV013 : Form
     MouseButtons pendingNativeButton=MouseButtons.None;
     bool pendingNativeTaskbar=false;
 
+    bool pendingCaptionCommand=false;
+    IntPtr pendingCaptionRoot=IntPtr.Zero;
+    int pendingCaptionHit=HTCLIENT;
+
     bool nativeInteraction=false;
     bool nativeTaskbarInteraction=false;
     POINT nativeReturnPoint;
@@ -223,7 +236,7 @@ public sealed class MirrorV013 : Form
 
     public static void EnableDpi(){ try{SetProcessDpiAwarenessContext(PMV2);}catch{} }
 
-    public MirrorV013(string srcName,string dstName,string mode) {
+    public MirrorV0131(string srcName,string dstName,string mode) {
         renderMode=mode;
 
         foreach(var m in Monitors()) {
@@ -236,7 +249,7 @@ public sealed class MirrorV013 : Form
         srcDC=CreateDC("DISPLAY",src.Name,null,IntPtr.Zero);
         if(srcDC==IntPtr.Zero) throw new Exception("CreateDC failed: "+src.Name);
 
-        Text="VirtualQHDMirror v0.13";
+        Text="VirtualQHDMirror v0.13.1";
         FormBorderStyle=FormBorderStyle.None;
         StartPosition=FormStartPosition.Manual;
         Bounds=dst.Rect;
@@ -254,6 +267,7 @@ public sealed class MirrorV013 : Form
 
         Shown+=delegate{
             Bounds=dst.Rect;
+            ApplyDwmIsolation();
             dstDC=GetDC(Handle);
             if(dstDC==IntPtr.Zero) throw new Exception("GetDC failed for mirror window.");
 
@@ -298,6 +312,8 @@ public sealed class MirrorV013 : Form
             if(id==HK_INPUT){
                 if(nativeInteraction) EndNativeInteraction();
                 pendingNativeClick=false;
+                pendingCaptionCommand=false;
+                pendingCaptionRoot=IntPtr.Zero;
                 inputEnabled=!inputEnabled;
                 return;
             }
@@ -309,6 +325,15 @@ public sealed class MirrorV013 : Form
             }
         }
         base.WndProc(ref m);
+    }
+
+    void ApplyDwmIsolation() {
+        try {
+            int enabled=1;
+            DwmSetWindowAttribute(Handle,DWMWA_DISALLOW_PEEK,ref enabled,sizeof(int));
+            DwmSetWindowAttribute(Handle,DWMWA_EXCLUDED_FROM_PEEK,ref enabled,sizeof(int));
+        }
+        catch {}
     }
 
     void ApplyInterval(int ms) {
@@ -427,7 +452,7 @@ public sealed class MirrorV013 : Form
         using(var fg=new SolidBrush(Color.White))
         using(var f=new Font("Consolas",10)) {
             string t=
-                "VirtualQHDMirror v0.13\n"+
+                "VirtualQHDMirror v0.13.1\n"+
                 "render: "+renderMode+" / "+(1000.0/Math.Max(1,lastInterval)).ToString("0")+" fps target\n"+
                 "zone: "+lastZone+"\n"+
                 "input: "+(inputEnabled?"ON":"OFF");
@@ -487,6 +512,25 @@ public sealed class MirrorV013 : Form
         return SendMessage(root,WM_NCHITTEST,IntPtr.Zero,LP(sp.X,sp.Y)).ToInt32();
     }
 
+    bool IsCaptionButtonHit(int ht) {
+        return ht==HTMINBUTTON||ht==HTMAXBUTTON||ht==HTCLOSE;
+    }
+
+    void ExecuteCaptionCommand(IntPtr root,int ht) {
+        if(root==IntPtr.Zero)return;
+
+        if(ht==HTMINBUTTON) {
+            PostMessage(root,WM_SYSCOMMAND,new IntPtr(SC_MINIMIZE),IntPtr.Zero);
+        }
+        else if(ht==HTMAXBUTTON) {
+            int cmd=IsZoomed(root)?SC_RESTORE:SC_MAXIMIZE;
+            PostMessage(root,WM_SYSCOMMAND,new IntPtr(cmd),IntPtr.Zero);
+        }
+        else if(ht==HTCLOSE) {
+            PostMessage(root,WM_SYSCOMMAND,new IntPtr(SC_CLOSE),IntPtr.Zero);
+        }
+    }
+
     bool IsDoubleClick(IntPtr root,POINT sp) {
         var now=DateTime.UtcNow;
         int maxMs=SystemInformation.DoubleClickTime;
@@ -520,6 +564,27 @@ public sealed class MirrorV013 : Form
                    name.Equals("SearchApp",StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }
+    }
+
+    bool SendAbsoluteMouseMove(POINT p) {
+        int vx=GetSystemMetrics(SM_XVIRTUALSCREEN);
+        int vy=GetSystemMetrics(SM_YVIRTUALSCREEN);
+        int vw=GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        int vh=GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        if(vw<=1||vh<=1)return SetCursorPos(p.X,p.Y);
+
+        int nx=(int)Math.Round((p.X-vx)*65535.0/(vw-1));
+        int ny=(int)Math.Round((p.Y-vy)*65535.0/(vh-1));
+        nx=Math.Max(0,Math.Min(65535,nx));
+        ny=Math.Max(0,Math.Min(65535,ny));
+
+        INPUT[] input=new INPUT[1];
+        input[0].type=INPUT_MOUSE;
+        input[0].U.mi.dx=nx;
+        input[0].U.mi.dy=ny;
+        input[0].U.mi.dwFlags=MOUSEEVENTF_MOVE|MOUSEEVENTF_ABSOLUTE|MOUSEEVENTF_VIRTUALDESK;
+        if(SendInput(1,input,Marshal.SizeOf(typeof(INPUT)))==1)return true;
+        return SetCursorPos(p.X,p.Y);
     }
 
     void SendNativeButton(MouseButtons button,bool down) {
@@ -559,7 +624,7 @@ public sealed class MirrorV013 : Form
         nativeInteraction=true;
         lastZone=taskbarInteraction?"NATIVE_TASKBAR":"NATIVE_CAPTION";
 
-        SetCursorPos(p.X,p.Y);
+        SendAbsoluteMouseMove(p);
         Application.DoEvents();
         Thread.Sleep(20);
 
@@ -582,7 +647,7 @@ public sealed class MirrorV013 : Form
         nativeStarted=DateTime.MinValue;
         nativeLastShellSeen=DateTime.MinValue;
 
-        SetCursorPos(destination.X,destination.Y);
+        SendAbsoluteMouseMove(destination);
         lastZone="DESKTOP";
     }
 
@@ -705,6 +770,9 @@ public sealed class MirrorV013 : Form
         if(!inputEnabled){base.OnMouseDown(e);return;}
 
         pendingNativeClick=false;
+        pendingCaptionCommand=false;
+        pendingCaptionRoot=IntPtr.Zero;
+        pendingCaptionHit=HTCLIENT;
 
         if(IsTaskbarZone(lastMapped)) {
             pendingNativeClick=true;
@@ -721,7 +789,16 @@ public sealed class MirrorV013 : Form
             IntPtr root=GetAncestor(target,GA_ROOT);
             if(root!=IntPtr.Zero)SetForegroundWindow(root);
 
-            if(IsCustomCaptionButtonZone(target,lastMapped)) {
+            int ht=HitTest(root,lastMapped);
+            if(IsCaptionButtonHit(ht)) {
+                pendingCaptionCommand=true;
+                pendingCaptionRoot=root;
+                pendingCaptionHit=ht;
+                base.OnMouseDown(e);
+                return;
+            }
+
+            if(ht==HTCLIENT&&IsCustomCaptionButtonZone(target,lastMapped)) {
                 pendingNativeClick=true;
                 pendingNativeButton=e.Button;
                 pendingNativeTaskbar=false;
@@ -767,6 +844,24 @@ public sealed class MirrorV013 : Form
 
         if(!inputEnabled){
             pendingNativeClick=false;
+            pendingCaptionCommand=false;
+            pendingCaptionRoot=IntPtr.Zero;
+            base.OnMouseUp(e);
+            return;
+        }
+
+        if(pendingCaptionCommand&&e.Button==MouseButtons.Left) {
+            IntPtr root=pendingCaptionRoot;
+            int expectedHit=pendingCaptionHit;
+            pendingCaptionCommand=false;
+            pendingCaptionRoot=IntPtr.Zero;
+            pendingCaptionHit=HTCLIENT;
+
+            IntPtr hover=WindowFromPoint(lastMapped);
+            IntPtr hoverRoot=hover==IntPtr.Zero?IntPtr.Zero:GetAncestor(hover,GA_ROOT);
+            int actualHit=hoverRoot==root?HitTest(root,lastMapped):HTCLIENT;
+            if(actualHit==expectedHit)ExecuteCaptionCommand(root,expectedHit);
+
             base.OnMouseUp(e);
             return;
         }
@@ -864,13 +959,13 @@ public sealed class MirrorV013 : Form
     }
 }
 
-public static class LauncherV013
+public static class LauncherV0131
 {
     [STAThread]
     public static void Run(string src,string dst,string mode) {
-        MirrorV013.EnableDpi();
-        if(String.IsNullOrWhiteSpace(src))src=MirrorV013.FindSource();
-        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV013.FindDestination();
+        MirrorV0131.EnableDpi();
+        if(String.IsNullOrWhiteSpace(src))src=MirrorV0131.FindSource();
+        if(String.IsNullOrWhiteSpace(dst))dst=MirrorV0131.FindDestination();
 
         if(src==null)throw new Exception("No 2560x1440 source found.");
         if(dst==null)throw new Exception("No 1920x1080 destination found.");
@@ -881,13 +976,13 @@ public static class LauncherV013
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MirrorV013(src,dst,mode));
+        Application.Run(new MirrorV0131(src,dst,mode));
     }
 }
 '@
 
     Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies "System.Windows.Forms","System.Drawing"
-    [LauncherV013]::Run($SourceDevice,$DestinationDevice,$Mode)
+    [LauncherV0131]::Run($SourceDevice,$DestinationDevice,$Mode)
 }
 catch {
     Write-Host ""

@@ -1,32 +1,46 @@
 # VirtualQHDMirror
 
-VirtualQHDMirror is a Windows prototype that mirrors a virtual 2560×1440 desktop onto a physical 1920×1080 monitor and forwards input back to the virtual desktop.
+VirtualQHDMirror mirrors a virtual 2560×1440 Windows desktop onto a physical 1920×1080 monitor and forwards input back to the virtual desktop.
 
 ## Current baseline
 
-- Version: **v0.13 prototype**
+- Version: **v0.13.1 prototype**
 - Platform: Windows 11
 - Source display: 2560×1440 virtual display
 - Destination display: 1920×1080 physical display
 - Rendering: Win32 GDI `StretchBlt`
-- Input forwarding: Win32 window messages + targeted `SendInput` fallbacks with native source interaction sessions
+- Input forwarding: Win32 messages + targeted native `SendInput` fallbacks
+- Native pointer fallback: virtual-desktop absolute coordinates
 - DPI awareness: Per-Monitor DPI Aware V2
 - Default render mode: adaptive 60 / 30 / 15 FPS
 
-The current prototype was developed for a configuration using an IDD virtual display and an external FHD monitor. It is not yet a general-purpose installer and does **not** install or configure the virtual display driver automatically.
+v0.13.1 focuses on interaction reliability before the larger public-release rewrite.
+
+## v0.13.1 input changes
+
+- The mirror window opts out of DWM Peek/Aero Peek so taskbar thumbnail selection should not expose the physical desktop underneath the mirror.
+- Taskbar and custom-chrome fallbacks move the Windows pointer through absolute virtual-desktop `SendInput`, similar to a remote-desktop input injector, with `SetCursorPos` retained only as a fallback.
+- Standard minimize, maximize/restore, and close buttons are identified through `WM_NCHITTEST` first and executed through `WM_SYSCOMMAND`.
+- Unity/Electron/custom title bars that report their controls as client area still use native input fallback.
+- Source cursor hotspot/size scaling from v0.13 is retained.
 
 ## Run
 
-The current v0.13 prototype source is stored under `prototype/v0.13/`. The previous `prototype/v0.12/` baseline is preserved unchanged for comparison.
+The current implementation is at the repository root.
 
 1. Prepare a 2560×1440 virtual display.
 2. Keep the physical destination monitor at 1920×1080.
-3. Run `prototype/v0.13/run.cmd`.
+3. Run `run.cmd`.
 
-Alternative launchers:
+Files:
 
-- `run-30fps.cmd`: fixed 30 FPS
-- `run-60fps.cmd`: fixed 60 FPS
+- `VirtualQHDMirror.ps1`: current implementation
+- `run.cmd`: adaptive mode
+- `scripts/run-30fps.cmd`: fixed 30 FPS
+- `scripts/run-60fps.cmd`: fixed 60 FPS
+- `prototype/v0.12/`: frozen historical comparison baseline
+
+The obsolete `prototype/v0.13/` working copy is no longer used; current revisions live at the repository root.
 
 ## Hotkeys
 
@@ -37,17 +51,13 @@ Alternative launchers:
 
 ## Known prototype limitations
 
-- Display selection currently relies primarily on 2560×1440 / 1920×1080 resolution matching.
+- Display selection still relies primarily on 2560×1440 / 1920×1080 resolution matching.
 - A compatible virtual display must already exist.
-- Some custom title bars and Windows shell surfaces still rely on native input fallback sessions.
-- Cursor behavior is not yet complete for every custom cursor type.
+- Same-session Windows input means there is still only one real OS cursor; native fallbacks temporarily operate that cursor on the virtual display.
+- Custom title bars can vary by application and still require compatibility testing.
 - Rendering still uses GDI rather than a GPU-native capture/presentation path.
 - No installer, driver lifecycle management, tray UI, crash recovery, telemetry, or automatic updates yet.
 
 ## Roadmap
 
-See [Docs/PUBLIC_RELEASE_PLAN.md](Docs/PUBLIC_RELEASE_PLAN.md) for the path from this prototype to a public release.
-
-## Repository status
-
-This repository currently contains the **prototype baseline**, not a production-ready public release.
+See `Docs/PUBLIC_RELEASE_PLAN.md` for the path from this prototype to a public release.

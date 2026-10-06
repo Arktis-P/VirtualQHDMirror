@@ -32,6 +32,10 @@ Do not create vague or emoji-less commit messages unless the repository owner ex
 
 ## Repository baseline
 
-- Current prototype baseline: `prototype/v0.13/`
+- Current working implementation: repository-root `VirtualQHDMirror.ps1` (**v0.13.1**)
+- Convenience launcher: repository-root `run.cmd`
+- Auxiliary launchers: `scripts/`
+- Frozen historical comparison baseline: `prototype/v0.12/`
 - Public release roadmap: `Docs/PUBLIC_RELEASE_PLAN.md`
-- Preserve the working v0.12 prototype unchanged as a comparison baseline while v0.13 and later prototypes evolve.
+
+Do not create a new `prototype/v0.xx/` directory for each incremental revision. Keep the active prototype at the repository root unless the repository owner explicitly requests another structure.
