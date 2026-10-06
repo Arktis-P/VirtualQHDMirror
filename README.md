@@ -33,7 +33,11 @@ MagSetInputTransform was evaluated because its coordinate-routing model matches 
 
 ## Run
 
-- run.cmd: Portal input, adaptive FPS, 120 Hz cursor overlay
+For normal use, double-click **VirtualQHDMirror.vbs**. It launches the PowerShell host without a visible console, while the app itself shows the GUI loading window and GUI startup errors.
+
+- VirtualQHDMirror.vbs: recommended no-console launcher
+- run.cmd: convenience bridge to VirtualQHDMirror.vbs
+- scripts/run-console.cmd: diagnostic console launcher
 - scripts/run-30fps.cmd: Portal input, 30 FPS
 - scripts/run-60fps.cmd: Portal input, 60 FPS
 - scripts/run-120fps.cmd: Portal input, experimental 120 FPS
@@ -79,4 +83,4 @@ The 120 FPS full-frame mode is experimental. On a 60 Hz physical monitor it can 
 
 Startup now uses a small WinForms loading window while the embedded mirror engine is prepared. Startup errors are shown in a GUI error dialog instead of waiting for console input.
 
-A dedicated no-console launcher is the intended normal-use entry point; the CMD launchers remain useful for diagnostics and fixed-FPS testing.
+The normal-use no-console launcher is `VirtualQHDMirror.vbs`. The root `run.cmd` now hands off to that launcher and exits immediately; `scripts/run-console.cmd` remains available for diagnostics.

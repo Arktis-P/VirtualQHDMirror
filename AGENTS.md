@@ -33,8 +33,9 @@ Do not create vague or emoji-less commit messages unless the repository owner ex
 ## Repository baseline
 
 - Current working implementation: repository-root `VirtualQHDMirror.ps1` (**v0.14.1 on the `v0.14.1` development branch**)
-- Convenience launcher: repository-root `run.cmd`
-- Auxiliary launchers: `scripts/`
+- Recommended no-console launcher: repository-root `VirtualQHDMirror.vbs`
+- Convenience bridge: repository-root `run.cmd`
+- Auxiliary/diagnostic launchers: `scripts/`
 - v0.14 primary input design: `Docs/V014_PORTAL_INPUT.md`
 - captured fallback notes: `Docs/V014_CAPTURED_INPUT.md`
 - runnable v0.13.1 archive: `archive/v0.13.1/`
