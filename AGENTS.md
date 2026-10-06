@@ -32,6 +32,6 @@ Do not create vague or emoji-less commit messages unless the repository owner ex
 
 ## Repository baseline
 
-- Current prototype baseline: `prototype/v0.12/`
+- Current prototype baseline: `prototype/v0.13/`
 - Public release roadmap: `Docs/PUBLIC_RELEASE_PLAN.md`
-- Preserve the working v0.12 prototype as a comparison baseline while production code is introduced incrementally.
+- Preserve the working v0.12 prototype unchanged as a comparison baseline while v0.13 and later prototypes evolve.
