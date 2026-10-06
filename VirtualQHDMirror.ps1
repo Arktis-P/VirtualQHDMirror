@@ -642,7 +642,7 @@ public sealed class MirrorV0141 : Form
         cursorOverlayReady.Reset();
         cursorOverlayAvailable=false;
 
-        cursorOverlayThread=new Thread(delegate{
+        cursorOverlayThread=new Thread(new ThreadStart(delegate{
             try {
                 var local=new CursorOverlayV0141(src.Rect,dst.Rect,cursorHz);
                 cursorOverlay=local;
@@ -658,7 +658,7 @@ public sealed class MirrorV0141 : Form
                 cursorOverlayAvailable=false;
                 cursorOverlay=null;
             }
-        });
+        }));
         cursorOverlayThread.IsBackground=true;
         cursorOverlayThread.Name="VirtualQHDMirror Cursor Overlay";
         cursorOverlayThread.SetApartmentState(ApartmentState.STA);
