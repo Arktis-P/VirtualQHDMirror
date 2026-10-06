@@ -155,7 +155,7 @@ public sealed class DriverEnvironmentProbe
         {
             parts.Add("Driver-configured monitor count is unavailable.");
         }
-        else if (configuredDeficit > 0)
+        else if (configuredDeficit is > 0)
         {
             parts.Add(
                 $"Driver config currently requests {configuredMonitorCount} monitor(s); full 1:1 coverage would require {physicalFhdTargetCount}.");

@@ -167,7 +167,10 @@ internal sealed class LegacyMirrorProcessController : IDisposable
             StateChanged?.Invoke(this, EventArgs.Empty);
             return LegacyMirrorSessionState.Attached;
         }
-        catch (ArgumentException)
+        catch (Exception exception)
+            when (exception is ArgumentException or
+                  InvalidOperationException or
+                  Win32Exception)
         {
             process?.Dispose();
 
