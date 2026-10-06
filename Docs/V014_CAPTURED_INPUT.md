@@ -1,4 +1,6 @@
-# v0.14 Captured Input Engine
+# v0.14 Captured Input Engine - Experimental Fallback
+
+> Portal input is now the default v0.14 direction. This document is retained only for fallback/regression testing.
 
 ## Goal
 

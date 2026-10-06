@@ -35,7 +35,9 @@ Do not create vague or emoji-less commit messages unless the repository owner ex
 - Current working implementation: repository-root `VirtualQHDMirror.ps1` (**v0.14 on the `v0.14` development branch**)
 - Convenience launcher: repository-root `run.cmd`
 - Auxiliary launchers: `scripts/`
-- v0.14 input design: `Docs/V014_CAPTURED_INPUT.md`
+- v0.14 primary input design: `Docs/V014_PORTAL_INPUT.md`
+- captured fallback notes: `Docs/V014_CAPTURED_INPUT.md`
+- runnable v0.13.1 archive: `archive/v0.13.1/`
 - Frozen historical comparison baseline: `prototype/v0.12/`
 - Public release roadmap: `Docs/PUBLIC_RELEASE_PLAN.md`
 

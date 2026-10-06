@@ -600,12 +600,15 @@ branch 정책 제안:
 
 ### v0.14
 
-- captured native input 기본 경로
-- 실제 Windows cursor를 virtual source에 유지하고 `ClipCursor`로 source monitor에 제한
-- 일반 mouse/shell/title-bar 동작을 Windows native input에 위임
-- source cursor shape/hotspot을 destination에 software-render
-- v0.13.1 입력 경로를 legacy fallback으로 유지
-- 실기기 검증 후 pointer travel scaling 필요 여부 결정
+- Portal input을 기본 경로로 사용
+- 1 | 2 | 3 모니터 topology와 직접 이동 유지
+- #2 진입 시 #3의 대응 좌표에서 Windows native input 사용
+- 수동 capture/release hotkey 제거
+- source 경계 제약은 portal 내부에서만 임시 사용하고 #2 경계 이동 시 자동 해제
+- 작업표시줄/hover/title-bar/custom chrome을 앱별 메시지 에뮬레이션 대신 native input으로 처리
+- MagSetInputTransform/UIAccess는 일반 배포 기본 의존성으로 채택하지 않음
+- captured/legacy 경로는 회귀 비교용 fallback으로 유지
+- v0.13.1 실행본은 archive/v0.13.1에 보존
 
 ### v0.20
 

@@ -3,8 +3,8 @@ param(
     [string]$DestinationDevice = "",
     [ValidateSet("adaptive","30","60")]
     [string]$Mode = "adaptive",
-    [ValidateSet("captured","legacy")]
-    [string]$InputMode = "captured"
+    [ValidateSet("portal","captured","legacy")]
+    [string]$InputMode = "portal"
 )
 
 $ErrorActionPreference = "Stop"
@@ -203,6 +203,19 @@ public sealed class MirrorV014 : Form
     bool inputEnabled=true;
     bool overlay=false;
 
+    const int PORTAL_EDGE_NONE=0;
+    const int PORTAL_EDGE_LEFT=1;
+    const int PORTAL_EDGE_RIGHT=2;
+    const int PORTAL_EDGE_TOP=3;
+    const int PORTAL_EDGE_BOTTOM=4;
+    const int PORTAL_ENTRY_THRESHOLD=16;
+    const int PORTAL_UNBLOCK_MARGIN=40;
+
+    bool portalActive=false;
+    int portalBlockedEdge=PORTAL_EDGE_NONE;
+    POINT lastPortalCursor;
+    bool lastPortalCursorValid=false;
+
     bool capturedInput=false;
     bool capturePending=false;
     MouseButtons capturePendingButton=MouseButtons.None;
@@ -251,7 +264,9 @@ public sealed class MirrorV014 : Form
 
     public MirrorV014(string srcName,string dstName,string mode,string requestedInputMode) {
         renderMode=mode;
-        inputMode=String.Equals(requestedInputMode,"legacy",StringComparison.OrdinalIgnoreCase)?"legacy":"captured";
+        if(String.Equals(requestedInputMode,"legacy",StringComparison.OrdinalIgnoreCase)) inputMode="legacy";
+        else if(String.Equals(requestedInputMode,"captured",StringComparison.OrdinalIgnoreCase)) inputMode="captured";
+        else inputMode="portal";
 
         foreach(var m in Monitors()) {
             if(String.Equals(m.Name,srcName,StringComparison.OrdinalIgnoreCase)) src=m;
@@ -275,7 +290,8 @@ public sealed class MirrorV014 : Form
         timer=new System.Windows.Forms.Timer();
         timer.Tick+=delegate{
             AdjustInterval();
-            if(inputMode=="captured") UpdateCapturedInput();
+            if(inputMode=="portal") UpdatePortalInput();
+            else if(inputMode=="captured") UpdateCapturedInput();
             else UpdateNativeInteraction();
             DrawFrame();
         };
@@ -299,7 +315,8 @@ public sealed class MirrorV014 : Form
         };
 
         FormClosed+=delegate{
-            if(capturedInput) EndCapturedInput();
+            if(portalActive) EndPortalToDestination();
+            else if(capturedInput) EndCapturedInput();
             else ReleaseCursorClip(IntPtr.Zero);
             if(nativeInteraction) EndNativeInteraction();
             timer.Stop();
@@ -326,11 +343,16 @@ public sealed class MirrorV014 : Form
         if(m.Msg==WM_HOTKEY) {
             int id=m.WParam.ToInt32();
             if(id==HK_EXIT){
-                if(capturedInput) EndCapturedInput();
+                if(portalActive) EndPortalToDestination();
+                else if(capturedInput) EndCapturedInput();
                 Close();
                 return;
             }
             if(id==HK_INPUT){
+                if(inputMode=="portal") {
+                    lastZone=portalActive?"PORTAL":"PORTAL READY";
+                    return;
+                }
                 if(inputMode=="captured") {
                     capturePending=false;
                     if(capturedInput) EndCapturedInput();
@@ -480,7 +502,9 @@ public sealed class MirrorV014 : Form
         using(var fg=new SolidBrush(Color.White))
         using(var f=new Font("Consolas",10)) {
             string inputState;
-            if(inputMode=="captured")
+            if(inputMode=="portal")
+                inputState=portalActive?"PORTAL NATIVE":"PORTAL READY";
+            else if(inputMode=="captured")
                 inputState=capturedInput?"CAPTURED":"ARMED";
             else
                 inputState=inputEnabled?"LEGACY ON":"LEGACY OFF";
@@ -578,6 +602,135 @@ public sealed class MirrorV014 : Form
         lastLeftClickPoint=sp;
         lastLeftClickRoot=root;
         return ok;
+    }
+
+    int DetectPortalEntryEdge(Point p) {
+        int w=Math.Max(1,ClientSize.Width);
+        int h=Math.Max(1,ClientSize.Height);
+
+        if(p.X<=PORTAL_ENTRY_THRESHOLD) return PORTAL_EDGE_LEFT;
+        if(p.X>=w-1-PORTAL_ENTRY_THRESHOLD) return PORTAL_EDGE_RIGHT;
+        if(p.Y<=PORTAL_ENTRY_THRESHOLD) return PORTAL_EDGE_TOP;
+        if(p.Y>=h-1-PORTAL_ENTRY_THRESHOLD) return PORTAL_EDGE_BOTTOM;
+        return PORTAL_EDGE_NONE;
+    }
+
+    bool HasMonitorPoint(POINT p) {
+        foreach(var m in Monitors()) {
+            if(p.X>=m.Rect.Left&&p.X<m.Rect.Right&&
+               p.Y>=m.Rect.Top&&p.Y<m.Rect.Bottom) return true;
+        }
+        return false;
+    }
+
+    bool BeginPortalInput(Point destinationPoint,POINT sourcePoint) {
+        if(portalActive)return true;
+
+        RECT clip=SourceClipRect();
+        if(!ClipCursor(ref clip))return false;
+
+        portalActive=true;
+        portalBlockedEdge=DetectPortalEntryEdge(destinationPoint);
+        lastPortalCursor=sourcePoint;
+        lastPortalCursorValid=true;
+        lastZone="PORTAL";
+
+        if(!SendAbsoluteMouseMove(sourcePoint)) {
+            ReleaseCursorClip(IntPtr.Zero);
+            portalActive=false;
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+            lastPortalCursorValid=false;
+            lastZone="PORTAL ERROR";
+            return false;
+        }
+
+        MarkInput();
+        return true;
+    }
+
+    void EndPortalToDestination() {
+        POINT current;
+        POINT destination=new POINT(
+            dst.Rect.Left+Math.Max(0,Math.Min(dst.Rect.Width-1,lastClient.X)),
+            dst.Rect.Top +Math.Max(0,Math.Min(dst.Rect.Height-1,lastClient.Y)));
+
+        if(GetCursorPos(out current)&&IsSourcePoint(current))
+            destination=MapSourceToDestination(current);
+
+        ReleaseCursorClip(IntPtr.Zero);
+        portalActive=false;
+        portalBlockedEdge=PORTAL_EDGE_NONE;
+        lastPortalCursorValid=false;
+        SendAbsoluteMouseMove(destination);
+        lastZone="PORTAL RELEASED";
+        MarkInput();
+    }
+
+    bool TryExitPortal(int edge,POINT sourcePoint) {
+        POINT destination=MapSourceToDestination(sourcePoint);
+        POINT target=destination;
+
+        if(edge==PORTAL_EDGE_LEFT) target.X=dst.Rect.Left-1;
+        else if(edge==PORTAL_EDGE_RIGHT) target.X=dst.Rect.Right;
+        else if(edge==PORTAL_EDGE_TOP) target.Y=dst.Rect.Top-1;
+        else if(edge==PORTAL_EDGE_BOTTOM) target.Y=dst.Rect.Bottom;
+        else return false;
+
+        if(!HasMonitorPoint(target))return false;
+
+        ReleaseCursorClip(IntPtr.Zero);
+        portalActive=false;
+        portalBlockedEdge=PORTAL_EDGE_NONE;
+        lastPortalCursorValid=false;
+        SendAbsoluteMouseMove(target);
+        lastZone="PORTAL EXIT";
+        MarkInput();
+        return true;
+    }
+
+    void UpdatePortalInput() {
+        if(!portalActive)return;
+
+        POINT p;
+        if(!GetCursorPos(out p))return;
+
+        if(!IsSourcePoint(p)) {
+            ReleaseCursorClip(IntPtr.Zero);
+            portalActive=false;
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+            lastPortalCursorValid=false;
+            lastZone="PORTAL EXIT";
+            return;
+        }
+
+        if(portalBlockedEdge==PORTAL_EDGE_LEFT && p.X>=src.Rect.Left+PORTAL_UNBLOCK_MARGIN)
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+        else if(portalBlockedEdge==PORTAL_EDGE_RIGHT && p.X<=src.Rect.Right-1-PORTAL_UNBLOCK_MARGIN)
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+        else if(portalBlockedEdge==PORTAL_EDGE_TOP && p.Y>=src.Rect.Top+PORTAL_UNBLOCK_MARGIN)
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+        else if(portalBlockedEdge==PORTAL_EDGE_BOTTOM && p.Y<=src.Rect.Bottom-1-PORTAL_UNBLOCK_MARGIN)
+            portalBlockedEdge=PORTAL_EDGE_NONE;
+
+        if(portalBlockedEdge!=PORTAL_EDGE_LEFT && p.X<=src.Rect.Left+1) {
+            if(TryExitPortal(PORTAL_EDGE_LEFT,p))return;
+        }
+        if(portalBlockedEdge!=PORTAL_EDGE_RIGHT && p.X>=src.Rect.Right-2) {
+            if(TryExitPortal(PORTAL_EDGE_RIGHT,p))return;
+        }
+        if(portalBlockedEdge!=PORTAL_EDGE_TOP && p.Y<=src.Rect.Top+1) {
+            if(TryExitPortal(PORTAL_EDGE_TOP,p))return;
+        }
+        if(portalBlockedEdge!=PORTAL_EDGE_BOTTOM && p.Y>=src.Rect.Bottom-2) {
+            if(TryExitPortal(PORTAL_EDGE_BOTTOM,p))return;
+        }
+
+        if(!lastPortalCursorValid ||
+           p.X!=lastPortalCursor.X || p.Y!=lastPortalCursor.Y) {
+            lastPortalCursor=p;
+            lastPortalCursorValid=true;
+            MarkInput();
+        }
     }
 
     RECT SourceClipRect() {
@@ -875,6 +1028,13 @@ public sealed class MirrorV014 : Form
         lastClient=e.Location;
         lastMapped=Map(e.Location);
 
+        if(inputMode=="portal") {
+            lastZone=portalActive?"PORTAL":"PORTAL READY";
+            if(!portalActive) BeginPortalInput(e.Location,lastMapped);
+            base.OnMouseMove(e);
+            return;
+        }
+
         if(inputMode=="captured") {
             lastZone=capturedInput?"CAPTURED":"ARMED";
             base.OnMouseMove(e);
@@ -897,6 +1057,17 @@ public sealed class MirrorV014 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="portal") {
+            lastZone=portalActive?"PORTAL":"PORTAL READY";
+            if(!portalActive && BeginPortalInput(e.Location,lastMapped)) {
+                Application.DoEvents();
+                Thread.Sleep(10);
+                SendNativeButton(e.Button,true);
+            }
+            base.OnMouseDown(e);
+            return;
+        }
 
         if(inputMode=="captured") {
             lastZone=capturedInput?"CAPTURED":"ARMED";
@@ -981,6 +1152,12 @@ public sealed class MirrorV014 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="portal") {
+            lastZone=portalActive?"PORTAL":"PORTAL READY";
+            base.OnMouseUp(e);
+            return;
+        }
 
         if(inputMode=="captured") {
             lastZone=capturedInput?"CAPTURED":"ARMED";
@@ -1084,6 +1261,17 @@ public sealed class MirrorV014 : Form
         MarkInput();
         lastClient=e.Location;
         lastMapped=Map(e.Location);
+
+        if(inputMode=="portal") {
+            lastZone=portalActive?"PORTAL":"PORTAL READY";
+            if(!portalActive&&BeginPortalInput(e.Location,lastMapped)) {
+                Application.DoEvents();
+                Thread.Sleep(10);
+                SendNativeWheel(e.Delta);
+            }
+            base.OnMouseWheel(e);
+            return;
+        }
 
         if(inputMode=="captured") {
             lastZone=capturedInput?"CAPTURED":"ARMED";
