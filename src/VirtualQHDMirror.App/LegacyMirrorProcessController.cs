@@ -1,16 +1,30 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace VirtualQHDMirror.App;
+
+internal enum LegacyMirrorSessionState
+{
+    None,
+    Attached,
+    Multiple
+}
 
 internal sealed class LegacyMirrorProcessController : IDisposable
 {
     private const uint WmHotKey = 0x0312;
     private const int ExitHotKeyId = 1;
+    private const string LegacyWindowTitle = "VirtualQHDMirror v0.14.1";
 
     private readonly object _gate = new();
     private Process? _process;
+    private int _detectedSessionCount;
+    private bool _attachedFromDiscovery;
 
     public event EventHandler? StateChanged;
 
@@ -31,36 +45,197 @@ internal sealed class LegacyMirrorProcessController : IDisposable
         {
             lock (_gate)
             {
-                return _process is { HasExited: false } process ? process.Id : null;
+                return _process is { HasExited: false } process
+                    ? process.Id
+                    : null;
             }
         }
     }
 
-    public void Start(string sourceDevice, string destinationDevice)
+    public int DetectedSessionCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _detectedSessionCount;
+            }
+        }
+    }
+
+    public bool AttachedFromDiscovery
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _process is { HasExited: false } &&
+                       _attachedFromDiscovery;
+            }
+        }
+    }
+
+    public LegacyMirrorSessionState SessionState
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_process is { HasExited: false })
+                {
+                    return LegacyMirrorSessionState.Attached;
+                }
+
+                return _detectedSessionCount > 1
+                    ? LegacyMirrorSessionState.Multiple
+                    : LegacyMirrorSessionState.None;
+            }
+        }
+    }
+
+    public LegacyMirrorSessionState DetectExistingSession()
+    {
+        lock (_gate)
+        {
+            if (_process is { HasExited: false })
+            {
+                _detectedSessionCount = 1;
+                return LegacyMirrorSessionState.Attached;
+            }
+
+            ClearTrackedProcessLocked();
+        }
+
+        var processIds = FindLegacyMirrorProcessIds();
+
+        if (processIds.Count != 1)
+        {
+            lock (_gate)
+            {
+                _detectedSessionCount = processIds.Count;
+                _attachedFromDiscovery = false;
+            }
+
+            StateChanged?.Invoke(this, EventArgs.Empty);
+
+            return processIds.Count > 1
+                ? LegacyMirrorSessionState.Multiple
+                : LegacyMirrorSessionState.None;
+        }
+
+        Process? process = null;
+
+        try
+        {
+            process = Process.GetProcessById(processIds[0]);
+
+            if (process.HasExited)
+            {
+                process.Dispose();
+
+                lock (_gate)
+                {
+                    _detectedSessionCount = 0;
+                    _attachedFromDiscovery = false;
+                }
+
+                StateChanged?.Invoke(this, EventArgs.Empty);
+                return LegacyMirrorSessionState.None;
+            }
+
+            process.EnableRaisingEvents = true;
+            process.Exited += MirrorProcess_Exited;
+
+            lock (_gate)
+            {
+                if (_process is { HasExited: false })
+                {
+                    process.Exited -= MirrorProcess_Exited;
+                    process.Dispose();
+                    _detectedSessionCount = 1;
+                    return LegacyMirrorSessionState.Attached;
+                }
+
+                ClearTrackedProcessLocked();
+                _process = process;
+                _detectedSessionCount = 1;
+                _attachedFromDiscovery = true;
+                process = null;
+            }
+
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            return LegacyMirrorSessionState.Attached;
+        }
+        catch (ArgumentException)
+        {
+            process?.Dispose();
+
+            lock (_gate)
+            {
+                _detectedSessionCount = 0;
+                _attachedFromDiscovery = false;
+            }
+
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            return LegacyMirrorSessionState.None;
+        }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    public void Start(
+        string sourceDevice,
+        string destinationDevice)
     {
         if (string.IsNullOrWhiteSpace(sourceDevice))
         {
-            throw new ArgumentException("Source display device name is missing.", nameof(sourceDevice));
+            throw new ArgumentException(
+                "Source display device name is missing.",
+                nameof(sourceDevice));
         }
 
         if (string.IsNullOrWhiteSpace(destinationDevice))
         {
-            throw new ArgumentException("Destination display device name is missing.", nameof(destinationDevice));
+            throw new ArgumentException(
+                "Destination display device name is missing.",
+                nameof(destinationDevice));
         }
 
         lock (_gate)
         {
             if (_process is { HasExited: false })
             {
-                throw new InvalidOperationException("A mirror session is already running.");
+                throw new InvalidOperationException(
+                    "A mirror session is already running.");
+            }
+        }
+
+        var existingProcessIds = FindLegacyMirrorProcessIds();
+
+        if (existingProcessIds.Count > 0)
+        {
+            lock (_gate)
+            {
+                _detectedSessionCount = existingProcessIds.Count;
+                _attachedFromDiscovery = false;
             }
 
-            _process?.Dispose();
-            _process = null;
+            throw new InvalidOperationException(
+                existingProcessIds.Count == 1
+                    ? "An existing v0.14.1 mirror session is already running. Reopen or refresh v0.20 so it can attach to that session."
+                    : $"{existingProcessIds.Count} existing v0.14.1 mirror sessions are already running. VQM will not start another session automatically.");
+        }
+
+        lock (_gate)
+        {
+            ClearTrackedProcessLocked();
 
             var scriptPath = ResolveLegacyEnginePath();
             var workingDirectory = Path.GetDirectoryName(scriptPath)
-                ?? throw new InvalidOperationException("Could not resolve the v0.14.1 engine directory.");
+                ?? throw new InvalidOperationException(
+                    "Could not resolve the v0.14.1 engine directory.");
 
             var startInfo = new ProcessStartInfo
             {
@@ -98,10 +273,14 @@ internal sealed class LegacyMirrorProcessController : IDisposable
             {
                 process.Exited -= MirrorProcess_Exited;
                 process.Dispose();
-                throw new InvalidOperationException("PowerShell did not start the v0.14.1 mirror engine.");
+
+                throw new InvalidOperationException(
+                    "PowerShell did not start the v0.14.1 mirror engine.");
             }
 
             _process = process;
+            _detectedSessionCount = 1;
+            _attachedFromDiscovery = false;
         }
 
         StateChanged?.Invoke(this, EventArgs.Empty);
@@ -109,6 +288,11 @@ internal sealed class LegacyMirrorProcessController : IDisposable
 
     public bool RequestStop()
     {
+        if (!IsRunning)
+        {
+            DetectExistingSession();
+        }
+
         Process? process;
 
         lock (_gate)
@@ -117,7 +301,7 @@ internal sealed class LegacyMirrorProcessController : IDisposable
 
             if (process is null || process.HasExited)
             {
-                return true;
+                return false;
             }
         }
 
@@ -127,7 +311,9 @@ internal sealed class LegacyMirrorProcessController : IDisposable
 
         NativeMethods.EnumWindows((window, _) =>
         {
-            NativeMethods.GetWindowThreadProcessId(window, out var processId);
+            NativeMethods.GetWindowThreadProcessId(
+                window,
+                out var processId);
 
             if (processId == (uint)process.Id)
             {
@@ -148,33 +334,118 @@ internal sealed class LegacyMirrorProcessController : IDisposable
     {
         lock (_gate)
         {
-            if (_process is not null)
-            {
-                _process.Exited -= MirrorProcess_Exited;
-                _process.Dispose();
-                _process = null;
-            }
+            ClearTrackedProcessLocked();
+            _detectedSessionCount = 0;
+            _attachedFromDiscovery = false;
         }
     }
 
-    private void MirrorProcess_Exited(object? sender, EventArgs e)
+    private void MirrorProcess_Exited(
+        object? sender,
+        EventArgs e)
     {
         lock (_gate)
         {
-            if (sender is Process process && ReferenceEquals(_process, process))
+            if (sender is Process process &&
+                ReferenceEquals(_process, process))
             {
                 process.Exited -= MirrorProcess_Exited;
                 process.Dispose();
                 _process = null;
+                _detectedSessionCount = 0;
+                _attachedFromDiscovery = false;
             }
         }
 
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void ClearTrackedProcessLocked()
+    {
+        if (_process is null)
+        {
+            return;
+        }
+
+        _process.Exited -= MirrorProcess_Exited;
+        _process.Dispose();
+        _process = null;
+    }
+
+    private static IReadOnlyList<int> FindLegacyMirrorProcessIds()
+    {
+        var processIds = new HashSet<int>();
+
+        NativeMethods.EnumWindows((window, _) =>
+        {
+            var titleLength = NativeMethods.GetWindowTextLength(window);
+
+            if (titleLength <= 0)
+            {
+                return true;
+            }
+
+            var title = new StringBuilder(titleLength + 1);
+
+            if (NativeMethods.GetWindowText(
+                    window,
+                    title,
+                    title.Capacity) <= 0 ||
+                !string.Equals(
+                    title.ToString(),
+                    LegacyWindowTitle,
+                    StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            NativeMethods.GetWindowThreadProcessId(
+                window,
+                out var processId);
+
+            if (processId == 0 ||
+                processId > int.MaxValue)
+            {
+                return true;
+            }
+
+            try
+            {
+                using var process = Process.GetProcessById(
+                    checked((int)processId));
+
+                if (IsPowerShellProcess(process.ProcessName))
+                {
+                    processIds.Add(process.Id);
+                }
+            }
+            catch (ArgumentException)
+            {
+                // The process exited between window enumeration and lookup.
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return processIds
+            .OrderBy(processId => processId)
+            .ToArray();
+    }
+
+    private static bool IsPowerShellProcess(string processName) =>
+        string.Equals(
+            processName,
+            "powershell",
+            StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(
+            processName,
+            "pwsh",
+            StringComparison.OrdinalIgnoreCase);
+
     private static string ResolveLegacyEnginePath()
     {
-        var configuredRoot = Environment.GetEnvironmentVariable("VQM_REPO_ROOT");
+        var configuredRoot = Environment.GetEnvironmentVariable(
+            "VQM_REPO_ROOT");
 
         if (!string.IsNullOrWhiteSpace(configuredRoot))
         {
@@ -190,11 +461,17 @@ internal sealed class LegacyMirrorProcessController : IDisposable
             }
         }
 
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        foreach (var start in new[]
+                 {
+                     Environment.CurrentDirectory,
+                     AppContext.BaseDirectory
+                 })
         {
             var directory = new DirectoryInfo(start);
 
-            for (var depth = 0; directory is not null && depth < 10; depth++, directory = directory.Parent)
+            for (var depth = 0;
+                 directory is not null && depth < 10;
+                 depth++, directory = directory.Parent)
             {
                 var candidate = Path.Combine(
                     directory.FullName,
@@ -215,13 +492,29 @@ internal sealed class LegacyMirrorProcessController : IDisposable
 
     private static class NativeMethods
     {
-        internal delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+        internal delegate bool EnumWindowsProc(
+            IntPtr window,
+            IntPtr parameter);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool EnumWindows(
             EnumWindowsProc callback,
             IntPtr parameter);
+
+        [DllImport(
+            "user32.dll",
+            CharSet = CharSet.Unicode)]
+        internal static extern int GetWindowTextLength(
+            IntPtr window);
+
+        [DllImport(
+            "user32.dll",
+            CharSet = CharSet.Unicode)]
+        internal static extern int GetWindowText(
+            IntPtr window,
+            StringBuilder text,
+            int maximumCount);
 
         [DllImport("user32.dll")]
         internal static extern uint GetWindowThreadProcessId(

@@ -133,3 +133,23 @@ The next implemented layer is a **read-only DriverManager probe**:
 - make no installation, registry, driver-state, or security changes.
 
 Automatic installation remains blocked behind the driver strategy/signing gate.
+
+
+## Multi-monitor capacity planning
+
+DriverManager now computes a read-only full-coverage requirement for the current FHD profile.
+
+Let:
+
+- `P` = eligible physical 1920×1080 targets,
+- `V` = active virtual 2560×1440 sources,
+- `C` = configured IddSampleDriver monitor count when readable.
+
+The app reports:
+
+- independent active pair capacity: `min(P, V)`,
+- additional active QHD sources needed for full 1:1 coverage: `max(0, P - V)`,
+- whether the current driver config count is lower than `P`,
+- whether config already requests enough monitors but fewer QHD virtual displays are currently active.
+
+"Full coverage" means **only if the user wants every eligible physical FHD display to have an independent virtual QHD workspace**. VQM does not change the config or assume that this is always the desired mode.

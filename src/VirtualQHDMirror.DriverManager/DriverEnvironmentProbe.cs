@@ -23,8 +23,18 @@ public sealed class DriverEnvironmentProbe
         new("4D36E968-E325-11CE-BFC1-08002BE10318");
 
     public DriverEnvironmentReport Probe(
-        IReadOnlyList<DisplayEndpoint> virtualDisplays)
+        IReadOnlyList<DisplayEndpoint> virtualDisplays,
+        int physicalFhdTargetCount)
     {
+        ArgumentNullException.ThrowIfNull(virtualDisplays);
+
+        if (physicalFhdTargetCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(physicalFhdTargetCount),
+                "Physical target count cannot be negative.");
+        }
+
         try
         {
             var devices = EnumeratePresentDisplayDevices();
@@ -35,6 +45,10 @@ public sealed class DriverEnvironmentProbe
             var activeVirtualCount = virtualDisplays.Count;
             var activeVirtualQhdCount = virtualDisplays.Count(display => display.IsQhd);
             var configuration = ReadIddSampleConfiguration();
+            var requirement = AssessVirtualMonitorRequirement(
+                physicalFhdTargetCount,
+                activeVirtualQhdCount,
+                configuration.ConfiguredMonitorCount);
 
             var status = DetermineStatus(
                 iddCandidates.Length,
@@ -47,6 +61,7 @@ public sealed class DriverEnvironmentProbe
                 ActiveVirtualDisplayCount: activeVirtualCount,
                 ActiveVirtualQhdCount: activeVirtualQhdCount,
                 Configuration: configuration,
+                Requirement: requirement,
                 Summary: BuildSummary(
                     status,
                     iddCandidates,
@@ -57,6 +72,10 @@ public sealed class DriverEnvironmentProbe
         catch (Exception exception)
         {
             var configuration = ReadIddSampleConfiguration();
+            var requirement = AssessVirtualMonitorRequirement(
+                physicalFhdTargetCount,
+                virtualDisplays.Count(display => display.IsQhd),
+                configuration.ConfiguredMonitorCount);
 
             return new DriverEnvironmentReport(
                 Status: DriverStatus.Error,
@@ -65,8 +84,102 @@ public sealed class DriverEnvironmentProbe
                 ActiveVirtualDisplayCount: virtualDisplays.Count,
                 ActiveVirtualQhdCount: virtualDisplays.Count(display => display.IsQhd),
                 Configuration: configuration,
+                Requirement: requirement,
                 Summary: $"Driver probe failed: {exception.Message}");
         }
+    }
+
+    private static VirtualMonitorRequirement AssessVirtualMonitorRequirement(
+        int physicalFhdTargetCount,
+        int activeVirtualQhdCount,
+        int? configuredMonitorCount)
+    {
+        var pairCapacity = Math.Min(
+            physicalFhdTargetCount,
+            activeVirtualQhdCount);
+
+        var activeDeficit = Math.Max(
+            0,
+            physicalFhdTargetCount - activeVirtualQhdCount);
+
+        int? configuredDeficit = configuredMonitorCount.HasValue
+            ? Math.Max(0, physicalFhdTargetCount - configuredMonitorCount.Value)
+            : null;
+
+        var summary = BuildVirtualMonitorRequirementSummary(
+            physicalFhdTargetCount,
+            activeVirtualQhdCount,
+            pairCapacity,
+            activeDeficit,
+            configuredMonitorCount,
+            configuredDeficit);
+
+        return new VirtualMonitorRequirement(
+            PhysicalFhdTargetCount: physicalFhdTargetCount,
+            ActiveVirtualQhdCount: activeVirtualQhdCount,
+            IndependentPairCapacity: pairCapacity,
+            ActiveVirtualQhdDeficit: activeDeficit,
+            ConfiguredMonitorCount: configuredMonitorCount,
+            ConfiguredMonitorDeficit: configuredDeficit,
+            FullCoverageTargetCount: physicalFhdTargetCount,
+            Summary: summary);
+    }
+
+    private static string BuildVirtualMonitorRequirementSummary(
+        int physicalFhdTargetCount,
+        int activeVirtualQhdCount,
+        int pairCapacity,
+        int activeDeficit,
+        int? configuredMonitorCount,
+        int? configuredDeficit)
+    {
+        if (physicalFhdTargetCount == 0)
+        {
+            return "No physical FHD target is currently eligible for independent QHD pairing.";
+        }
+
+        var parts = new List<string>();
+
+        if (activeDeficit == 0)
+        {
+            parts.Add(
+                $"Full 1:1 QHD coverage is ready: {pairCapacity}/{physicalFhdTargetCount} physical FHD target(s) can be paired independently.");
+        }
+        else
+        {
+            parts.Add(
+                $"Full 1:1 QHD coverage: {pairCapacity}/{physicalFhdTargetCount} ready; {activeDeficit} additional active virtual QHD source(s) would be needed if every physical FHD target is used independently.");
+        }
+
+        if (configuredMonitorCount is null)
+        {
+            parts.Add("Driver-configured monitor count is unavailable.");
+        }
+        else if (configuredDeficit > 0)
+        {
+            parts.Add(
+                $"Driver config currently requests {configuredMonitorCount} monitor(s); full 1:1 coverage would require {physicalFhdTargetCount}.");
+        }
+        else if (configuredMonitorCount == physicalFhdTargetCount)
+        {
+            parts.Add(
+                $"Driver config already requests {configuredMonitorCount} monitor(s), matching the full-coverage target.");
+        }
+        else
+        {
+            parts.Add(
+                $"Driver config requests {configuredMonitorCount} monitor(s), above the {physicalFhdTargetCount} currently eligible physical FHD target(s).");
+        }
+
+        if (configuredMonitorCount is int configured &&
+            configured >= physicalFhdTargetCount &&
+            activeVirtualQhdCount < physicalFhdTargetCount)
+        {
+            parts.Add(
+                "The config count is sufficient, but not all requested QHD virtual displays are active yet.");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static DriverStatus DetermineStatus(

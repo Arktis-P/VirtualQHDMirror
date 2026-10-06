@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace VirtualQHDMirror.DriverManager;
@@ -26,6 +27,21 @@ public sealed record IddSampleConfiguration(
     IReadOnlyList<string> Modes,
     string? Error);
 
+public sealed record VirtualMonitorRequirement(
+    int PhysicalFhdTargetCount,
+    int ActiveVirtualQhdCount,
+    int IndependentPairCapacity,
+    int ActiveVirtualQhdDeficit,
+    int? ConfiguredMonitorCount,
+    int? ConfiguredMonitorDeficit,
+    int FullCoverageTargetCount,
+    string Summary)
+{
+    public bool HasFullActiveCoverage =>
+        PhysicalFhdTargetCount > 0 &&
+        ActiveVirtualQhdDeficit == 0;
+}
+
 public sealed record DriverEnvironmentReport(
     DriverStatus Status,
     IReadOnlyList<DriverDeviceInfo> DisplayDevices,
@@ -33,4 +49,5 @@ public sealed record DriverEnvironmentReport(
     int ActiveVirtualDisplayCount,
     int ActiveVirtualQhdCount,
     IddSampleConfiguration Configuration,
+    VirtualMonitorRequirement Requirement,
     string Summary);

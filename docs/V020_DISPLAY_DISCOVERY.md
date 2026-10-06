@@ -142,3 +142,19 @@ Current behavior:
 This is a migration bridge, not the final architecture. It intentionally reuses the proven v0.14.1 rendering/input core while v0.20 owns discovery and pairing. Later phases replace the PowerShell engine subsystem-by-subsystem.
 
 The v0.14.1 archive remains frozen; v0.20 only launches it with explicit display device names.
+
+
+## Stable-engine session reattachment
+
+The v0.20 shell no longer assumes that it owns the lifetime of the v0.14.1 PowerShell process.
+
+Behavior:
+
+- closing v0.20 intentionally leaves an active mirror session running,
+- reopening v0.20 enumerates top-level Windows windows named `VirtualQHDMirror v0.14.1`,
+- exactly one matching PowerShell process is reattached and becomes controllable through `Stop Mirror`,
+- zero matches means no legacy session is active,
+- multiple matching sessions are treated as ambiguous; v0.20 does not choose or terminate one automatically,
+- `Stop Mirror` still uses the v0.14.1 normal cleanup path rather than force-killing the process.
+
+This compatibility bridge is temporary until mirror-session ownership moves into the native .NET engine.

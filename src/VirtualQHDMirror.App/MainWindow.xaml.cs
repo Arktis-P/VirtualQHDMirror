@@ -16,7 +16,11 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _mirrorController.StateChanged += MirrorController_StateChanged;
-        Loaded += (_, _) => RefreshDisplays();
+        Loaded += (_, _) =>
+        {
+            _mirrorController.DetectExistingSession();
+            RefreshDisplays();
+        };
         Closed += (_, _) =>
         {
             _mirrorController.StateChanged -= MirrorController_StateChanged;
@@ -99,9 +103,12 @@ public partial class MainWindow : Window
         try
         {
             var result = _displayDiscovery.DiscoverActiveDisplays();
-            var driverReport = _driverProbe.Probe(result.VirtualDisplays);
+            var driverReport = _driverProbe.Probe(
+                result.VirtualDisplays,
+                result.PhysicalFhdCandidates.Count);
 
             DriverSummaryText.Text = driverReport.Summary;
+            CapacitySummaryText.Text = driverReport.Requirement.Summary;
 
             DisplayList.ItemsSource = result.Displays.Select(display => new
             {
@@ -168,6 +175,7 @@ public partial class MainWindow : Window
             VirtualSummaryText.Text = "Display discovery failed.";
             PhysicalSummaryText.Text = "Display discovery failed.";
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
+            CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
         }
@@ -195,31 +203,49 @@ public partial class MainWindow : Window
 
     private void UpdateMirrorControls()
     {
-        var running = _mirrorController.IsRunning;
+        var sessionState = _mirrorController.SessionState;
+        var running = sessionState == LegacyMirrorSessionState.Attached;
+        var multipleSessions = sessionState == LegacyMirrorSessionState.Multiple;
         var hasPair =
             VirtualSourceComboBox.SelectedItem is DisplayChoice &&
             PhysicalDestinationComboBox.SelectedItem is DisplayChoice;
 
-        StartMirrorButton.IsEnabled = !running && hasPair;
+        StartMirrorButton.IsEnabled =
+            !running &&
+            !multipleSessions &&
+            hasPair;
+
         StopMirrorButton.IsEnabled = running;
-        VirtualSourceComboBox.IsEnabled = !running;
-        PhysicalDestinationComboBox.IsEnabled = !running;
+        VirtualSourceComboBox.IsEnabled = !running && !multipleSessions;
+        PhysicalDestinationComboBox.IsEnabled = !running && !multipleSessions;
         RefreshButton.IsEnabled = !running;
 
         if (running)
         {
-            MirrorStateText.Text =
+            var processText =
                 _mirrorController.ProcessId is int processId
-                    ? $"Mirror is running through the v0.14.1 stable engine (PID {processId})."
-                    : "Mirror is running through the v0.14.1 stable engine.";
+                    ? $"PID {processId}"
+                    : "process attached";
+
+            MirrorStateText.Text =
+                _mirrorController.AttachedFromDiscovery
+                    ? $"Attached to an existing v0.14.1 mirror session ({processText}). Closing this v0.20 window will leave the mirror running; reopening v0.20 can attach again."
+                    : $"Mirror is running through the v0.14.1 stable engine ({processText}). Closing this v0.20 window will leave the mirror running.";
+        }
+        else if (multipleSessions)
+        {
+            MirrorStateText.Text =
+                $"{_mirrorController.DetectedSessionCount} v0.14.1 mirror sessions were detected. VQM will not guess which one to control; Start/Stop are disabled for this compatibility bridge.";
         }
         else if (hasPair)
         {
-            MirrorStateText.Text = "Ready. Start Mirror will launch the selected pair using the stable v0.14.1 Portal engine.";
+            MirrorStateText.Text =
+                "Ready. Start Mirror will launch the selected pair using the stable v0.14.1 Portal engine.";
         }
         else
         {
-            MirrorStateText.Text = "Select one virtual QHD source and one physical FHD destination.";
+            MirrorStateText.Text =
+                "Select one virtual QHD source and one physical FHD destination.";
         }
     }
 
