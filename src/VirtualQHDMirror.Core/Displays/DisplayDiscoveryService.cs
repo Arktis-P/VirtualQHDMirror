@@ -5,6 +5,11 @@ namespace VirtualQHDMirror.Core.Displays;
 
 public sealed class DisplayDiscoveryService
 {
+    static DisplayDiscoveryService()
+    {
+        ValidateNativeLayouts();
+    }
+
     private const uint QdcOnlyActivePaths = 0x00000002;
     private const int ErrorSuccess = 0;
     private const int ErrorInsufficientBuffer = 122;
@@ -75,6 +80,7 @@ public sealed class DisplayDiscoveryService
             var stableId = BuildStableId(
                 path.TargetInfo.AdapterId,
                 path.TargetInfo.Id,
+                targetName.ConnectorInstance,
                 targetName.MonitorDevicePath,
                 adapterName.AdapterDevicePath);
 
@@ -147,6 +153,26 @@ public sealed class DisplayDiscoveryService
             Messages: BuildMessages(virtualQhdCandidates, physicalFhdCandidates));
     }
 
+    private static void ValidateNativeLayouts()
+    {
+        var checks = new (string Name, int Actual, int Expected)[]
+        {
+            (nameof(DisplayConfigPathInfo), Marshal.SizeOf<DisplayConfigPathInfo>(), 72),
+            (nameof(DisplayConfigModeInfo), Marshal.SizeOf<DisplayConfigModeInfo>(), 64),
+            (nameof(DisplayConfigSourceDeviceName), Marshal.SizeOf<DisplayConfigSourceDeviceName>(), 84),
+            (nameof(DisplayConfigTargetDeviceName), Marshal.SizeOf<DisplayConfigTargetDeviceName>(), 420),
+            (nameof(DisplayConfigAdapterName), Marshal.SizeOf<DisplayConfigAdapterName>(), 276)
+        };
+
+        var invalid = checks.FirstOrDefault(check => check.Actual != check.Expected);
+
+        if (invalid != default)
+        {
+            throw new InvalidOperationException(
+                $"Unexpected Win32 display structure size for {invalid.Name}: {invalid.Actual} (expected {invalid.Expected}).");
+        }
+    }
+
     private static (DisplayConfigPathInfo[] Paths, DisplayConfigModeInfo[] Modes) QueryActiveConfiguration()
     {
         for (var attempt = 0; attempt < 3; attempt++)
@@ -182,12 +208,12 @@ public sealed class DisplayDiscoveryService
                 throw new Win32Exception(status, "QueryDisplayConfig failed.");
             }
 
-            if (pathCount != paths.Length)
+            if (pathCount != (uint)paths.Length)
             {
                 Array.Resize(ref paths, checked((int)pathCount));
             }
 
-            if (modeCount != modes.Length)
+            if (modeCount != (uint)modes.Length)
             {
                 Array.Resize(ref modes, checked((int)modeCount));
             }
@@ -210,7 +236,7 @@ public sealed class DisplayDiscoveryService
             return SourceModeSnapshot.Empty;
         }
 
-        var mode = modes[sourceInfo.ModeInfoIdx];
+        var mode = modes[checked((int)sourceInfo.ModeInfoIdx)];
 
         if (mode.InfoType != DisplayConfigModeInfoType.Source ||
             mode.Id != sourceInfo.Id ||
@@ -443,12 +469,22 @@ public sealed class DisplayDiscoveryService
     private static string BuildStableId(
         Luid adapterId,
         uint targetId,
+        uint connectorInstance,
         string? monitorDevicePath,
         string? adapterDevicePath)
     {
+        if (!string.IsNullOrWhiteSpace(monitorDevicePath))
+        {
+            return $"{monitorDevicePath.Trim()}:{connectorInstance}".ToUpperInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(adapterDevicePath))
+        {
+            return $"{adapterDevicePath.Trim()}:{targetId}:{connectorInstance}".ToUpperInvariant();
+        }
+
         var adapterKey = $"{unchecked((uint)adapterId.HighPart):X8}{adapterId.LowPart:X8}";
-        var deviceKey = FirstNonEmpty(monitorDevicePath, adapterDevicePath, "no-device-path");
-        return $"{adapterKey}:{targetId}:{deviceKey}".ToUpperInvariant();
+        return $"{adapterKey}:{targetId}:{connectorInstance}".ToUpperInvariant();
     }
 
     private static CandidateSelectionState GetSelectionState(int count) =>
@@ -500,10 +536,10 @@ public sealed class DisplayDiscoveryService
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private readonly struct Luid : IEquatable<Luid>
+    private struct Luid : IEquatable<Luid>
     {
-        public readonly uint LowPart;
-        public readonly int HighPart;
+        public uint LowPart;
+        public int HighPart;
 
         public bool Equals(Luid other) =>
             LowPart == other.LowPart && HighPart == other.HighPart;

@@ -16,7 +16,7 @@ For every active path VQM records:
 - monitor friendly name,
 - monitor device path,
 - adapter device path,
-- adapter/target-derived stable identifier,
+- persistent identity preferring monitor device path + connector instance, with adapter/target fallback,
 - desktop position,
 - current source resolution,
 - connector/output technology,
