@@ -614,8 +614,8 @@ branch 정책 제안:
 
 - Portal 입력 구조 유지
 - full-frame GDI 렌더와 software cursor 렌더 분리
-- cursor 전용 click-through overlay를 별도 UI thread에서 120 Hz 기본 추적
-- cursor polling 60 / 120 / 240 Hz 비교 가능
+- cursor 전용 click-through overlay 실험은 Windows 커서 소실 회귀로 기본 경로에서 비활성화
+- 안정적인 frame-synced cursor composition을 기본 경로로 유지
 - 전체 렌더 Adaptive / 30 / 60 / 실험적 120 FPS 지원
 - 1 ms timer resolution 요청으로 prototype frame pacing 개선
 - diagnostic overlay에 render cost / cursor path 표시

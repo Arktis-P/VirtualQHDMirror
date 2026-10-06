@@ -534,7 +534,9 @@ public sealed class MirrorV0141 : Form
             SetStretchBltMode(dstDC,HALFTONE);
             SetBrushOrgEx(dstDC,0,0,IntPtr.Zero);
 
-            StartCursorOverlay();
+            // Dedicated cursor overlay is disabled after a Windows compositing regression.
+            // Keep the stable in-frame cursor path as the default until the overlay is reworked.
+            cursorOverlayAvailable=false;
 
             RegisterHotKey(Handle,HK_EXIT,MOD_CONTROL|MOD_ALT,VK_F12);
             RegisterHotKey(Handle,HK_INPUT,MOD_CONTROL|MOD_ALT,VK_F11);
@@ -702,8 +704,8 @@ public sealed class MirrorV0141 : Form
             0,0,src.Rect.Width,src.Rect.Height,
             SRCCOPY);
 
-        // Fallback only: normally the cursor is rendered by a dedicated high-rate overlay.
-        if(!cursorOverlayAvailable)DrawSourceCursorIfNeeded();
+        // Stable cursor path: always compose the source cursor into the mirror frame.
+        DrawSourceCursorIfNeeded();
 
         long t1=System.Diagnostics.Stopwatch.GetTimestamp();
         double ms=(t1-t0)*1000.0/System.Diagnostics.Stopwatch.Frequency;
@@ -802,7 +804,7 @@ public sealed class MirrorV0141 : Form
                 "VirtualQHDMirror v0.14.1\n"+
                 "render: "+renderMode+" / "+(1000.0/Math.Max(1,lastInterval)).ToString("0")+" fps target\n"+
                 "render cost: "+lastRenderCostMs.ToString("0.0")+" ms\n"+
-                "cursor: "+(cursorOverlayAvailable?cursorHz.ToString()+" Hz overlay":"frame fallback")+"\n"+
+                "cursor: frame-synced stable path\n"+
                 "zone: "+lastZone+"\n"+
                 "input: "+inputState;
             var s=g.MeasureString(t,f);

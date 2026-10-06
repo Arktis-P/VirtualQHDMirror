@@ -12,7 +12,7 @@ VirtualQHDMirror mirrors a virtual 2560x1440 Windows desktop onto a physical 192
   - 3: virtual QHD source
 - Default input mode: Portal
 - Diagnostic fallbacks: Captured and Legacy
-- Cursor renderer: dedicated 120 Hz overlay by default
+- Cursor renderer: stable frame-synced source cursor composition
 - Full-frame modes: Adaptive / 30 / 60 / experimental 120 FPS
 
 ## v0.14.1 Portal input
@@ -72,11 +72,9 @@ archive/v0.13.1/run.cmd
 
 ## v0.14.1 latency work
 
-The software cursor is no longer tied to the full QHD-to-FHD StretchBlt cadence. A separate click-through transparent overlay polls and redraws source cursor position/shape at 120 Hz by default. The physical output is still 60 Hz, so this does not create 120 visible refreshes; it reduces the chance that a displayed refresh uses an older cursor position.
+The dedicated transparent cursor overlay experiment is temporarily disabled because it caused cursor disappearance on the Windows target setup. v0.14.1 currently uses the stable frame-synced source cursor composition path.
 
-Use -CursorHz 60, 120, or 240 for comparison. 120 Hz is the default balance.
-
-The 120 FPS full-frame mode is experimental. On a 60 Hz physical monitor it can reduce frame age slightly, but it cannot display more than the monitor refresh rate and it increases GDI copy load.
+The 120 FPS full-frame mode remains available for latency comparison. On a 60 Hz physical monitor it can reduce frame age slightly, but it cannot display more than the monitor refresh rate and it increases GDI copy load.
 
 
 ## v0.14.1 startup UI
