@@ -1,6 +1,14 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
-기준 버전: **v0.14.1 development prototype**
+기준 버전: **v0.14.1 stable prototype / v0.20 public-release migration**
+
+현재 공개화 작업 브랜치: **`gpt/public-release-v0.20`**
+
+진행 상태:
+
+- ✅ v0.14.1 runnable fallback 보존 (`archive/v0.14.1/`)
+- ✅ v0.20 .NET 8/WPF solution bootstrap
+- 🔄 다음 구현: `QueryDisplayConfig` 기반 DisplayDiscovery
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -119,17 +127,21 @@ VirtualQHDMirror/
 
 ## 4. 단계별 개발 계획
 
-## Phase A — v0.12 기준선 보존
+## Phase A — 동작 기준선 보존
 
 목적: 현재 동작하는 프로토타입을 잃지 않고 정식 앱 전환의 비교 기준으로 사용.
 
+상태: **보존 작업 완료, 회귀 검증은 지속 진행**
+
 작업:
 
-- v0.12 소스 고정
+- `prototype/v0.12/` historical baseline 유지
+- `archive/v0.13.1/` 이전 안정판 유지
+- `archive/v0.14.1/` 현재 runnable fallback 유지
 - 사용 중인 단축키, 입력 동작, 렌더 모드 문서화
 - 알려진 문제 목록 작성
 - 테스트 환경 기록
-- 최소 기능 smoke test 작성
+- .NET 이식 단계별 smoke/regression check 추가
 
 완료 조건:
 
@@ -707,15 +719,15 @@ branch 정책 제안:
 
 현재 기준에서 가장 효율적인 순서:
 
-1. v0.12 historical baseline 유지 + 루트 v0.13.1 회귀 테스트
-2. .NET solution 생성
-3. QueryDisplayConfig 기반 DisplayDiscovery 구현
-4. v0.12 GDI renderer를 정식 app에 이식
-5. v0.12 input forwarding을 모듈화해서 이식
-6. 설정 UI / tray 추가
-7. D3D11 backend 구현
-8. driver strategy 확정
-9. installer
+1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
+2. 🔄 QueryDisplayConfig 기반 DisplayDiscovery 구현
+3. v0.14.1 GDI renderer를 정식 app에 이식
+4. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
+5. 설정 저장 + source/destination 선택 UI
+6. D3D11 / Windows Graphics Capture backend 구현
+7. driver strategy 확정 및 DriverManager 연결
+8. tray / startup / diagnostics export
+9. installer + uninstall/rollback
 10. external alpha
 
 핵심 원칙은 **동작 중인 v0.12를 한 번에 버리지 않고, 각 계층을 하나씩 정식 구현으로 대체하는 것**이다.
