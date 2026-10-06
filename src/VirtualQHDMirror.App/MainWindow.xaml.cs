@@ -9,6 +9,7 @@ public partial class MainWindow : Window
 {
     private readonly DisplayDiscoveryService _displayDiscovery = new();
     private readonly DriverEnvironmentProbe _driverProbe = new();
+    private readonly DriverConfigurationPlanner _driverConfigurationPlanner = new();
     private readonly LegacyMirrorProcessController _mirrorController = new();
 
     public MainWindow()
@@ -108,8 +109,13 @@ public partial class MainWindow : Window
                 result.VirtualDisplays,
                 result.PhysicalFhdCandidates.Count);
 
+            var driverPlan =
+                _driverConfigurationPlanner.BuildFullCoveragePlan(driverReport);
+
             DriverSummaryText.Text = driverReport.Summary;
             CapacitySummaryText.Text = driverReport.Requirement.Summary;
+            DriverPlanSummaryText.Text =
+                $"[{driverPlan.State}] {driverPlan.Summary}";
 
             DisplayList.ItemsSource = result.Displays.Select(display => new
             {
@@ -177,6 +183,7 @@ public partial class MainWindow : Window
             PhysicalSummaryText.Text = "Display discovery failed.";
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
             CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
+            DriverPlanSummaryText.Text = "Driver configuration plan is unavailable.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
         }

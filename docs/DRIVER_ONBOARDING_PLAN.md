@@ -153,3 +153,31 @@ The app reports:
 - whether config already requests enough monitors but fewer QHD virtual displays are currently active.
 
 "Full coverage" means **only if the user wants every eligible physical FHD display to have an independent virtual QHD workspace**. VQM does not change the config or assume that this is always the desired mode.
+
+
+## Safe configuration/reload plan
+
+The current ge9-style compatibility driver loads `option.txt` from its device-add path, not continuously while it is running. Therefore changing the monitor-count line alone is not sufficient; the IDD device must be restarted/re-enumerated before the new count can take effect.
+
+VQM now builds a **read-only configuration plan** before any privileged operation.
+
+Plan states:
+
+- `NotApplicable`: no eligible physical FHD target requires a QHD source,
+- `NoChangeRequired`: configured count and active QHD count already cover the current full-coverage target,
+- `RestartRecommended`: config count is already sufficient but fewer required QHD sources are active,
+- `ReadyToIncrease`: the config count is below the physical FHD full-coverage target,
+- `Blocked`: device/config identity is ambiguous or unsafe.
+
+Safety rules:
+
+- compatibility driver count is capped at 4 because the upstream sample recommends a small count below 5,
+- VQM never reduces an already-higher configured monitor count automatically,
+- exactly one recognized IddSampleDriver-compatible Display-class device is required before proposing a restart,
+- `2560×1440` must already be present in the driver's configured mode list,
+- no physical EDID or GraphicsDrivers registry modification is involved,
+- active mirror sessions must be stopped before any future driver restart operation.
+
+The next privileged implementation should use the detected **device instance ID** and Windows' built-in `pnputil /restart-device <instance-id>` operation rather than Device Manager automation. PnPUtil device restart is available on supported modern Windows versions and requires elevation.
+
+The privileged write/restart helper is intentionally a separate next step; the normal VQM UI should not run elevated for routine mirroring.

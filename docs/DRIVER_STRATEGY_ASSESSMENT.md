@@ -68,3 +68,20 @@ If the machine has `P` eligible physical FHD displays and the user chooses indep
 If the driver currently exposes fewer than `P`, DriverManager should report the deficit rather than silently duplicating one virtual source.
 
 The present checkpoint only reads this state. It does not rewrite `option.txt` or restart/reinstall the driver.
+
+
+## Configuration reload finding
+
+Inspection of the current ge9 compatibility source shows that `loadOptions(...option.txt)` is called from the driver's device-add initialization path. The driver then uses that loaded monitor count as `MaxMonitorsSupported` and creates that number of virtual monitors during adapter initialization.
+
+Implication:
+
+1. write a validated new monitor count,
+2. preserve a rollback copy,
+3. restart only the recognized IDD device,
+4. wait for display topology to settle,
+5. re-run VQM display discovery,
+6. verify the expected number of QHD virtual sources,
+7. restore the previous config/restart again if verification fails.
+
+For the Windows-side restart primitive, prefer Microsoft's built-in PnPUtil `/restart-device` command with the exact detected device instance ID. Do not disable/enable arbitrary Display-class devices and do not restart by broad class match.

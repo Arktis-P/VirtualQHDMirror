@@ -9,7 +9,7 @@
 - ✅ v0.14.1 runnable fallback 보존 (`archive/v0.14.1/`)
 - ✅ v0.20 .NET 8/WPF solution bootstrap
 - ✅ read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery** — 실제 IDD/물리 모니터 식별 및 v0.14.1 mirror handoff 검증 완료
-- 🟡 **DriverManager read-only probe + multi-monitor capacity** — 설치/활성/config/QHD mode 및 전체 1:1 coverage 필요 수 계산 구현, 실제 다중 모니터 검증 대기
+- 🟡 **DriverManager read-only probe + multi-monitor capacity + safe apply plan** — 설치/활성/config/QHD mode, 전체 1:1 coverage 필요 수, config 증가/restart 필요 여부 계산 구현; 실제 다중 모니터 및 privileged apply 검증 대기
 - ✅ v0.14.1 compatibility session 재탐지/Stop 제어 — v0.20 창을 닫아도 mirror 유지, 재실행 시 단일 기존 session 재부착
 - ⏭ 다음 P0: public driver signing/distribution 전략 확정 + 설치/복구/제거 경로
 
@@ -745,7 +745,7 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 
 1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
 2. ✅ **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery** — 현재 개발 PC 실동작 검증 완료
-3. 🟡 **DriverManager read-only 상태/다중 monitor capacity 확인** + IddSampleDriver 개발 호환 baseline
+3. 🟡 **DriverManager 상태/다중 monitor capacity + safe config/restart plan** + IddSampleDriver 개발 호환 baseline
 4. **public virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440·다중 monitor 제공 방식
 5. **공개용 드라이버 설치·복구·제거 안내 작성**
 6. v0.14.1 GDI renderer를 정식 app에 이식
