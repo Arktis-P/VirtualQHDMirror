@@ -4,7 +4,7 @@
 
 v0.20 begins the migration from the working PowerShell prototype to a maintainable .NET Windows application.
 
-The migration is incremental. The runnable v0.14.1 implementation remains available at the repository root and under `archive/v0.14.1/` until equivalent functionality is proven in the .NET path.
+The migration is incremental. The root `run.cmd` keeps the runnable v0.14.1 fallback available from `archive/v0.14.1/` until equivalent functionality is proven in the .NET path.
 
 ## Initial structure
 
@@ -25,4 +25,4 @@ The migration is incremental. The runnable v0.14.1 implementation remains availa
 
 ## Compatibility rule
 
-Do not remove or rewrite the root PowerShell implementation merely to fit the new architecture. Each subsystem is replaced only after the .NET implementation reaches feature parity and passes regression checks against v0.14.1.
+Do not rewrite the frozen `archive/v0.14.1/` implementation merely to fit the new architecture. Keep `run.cmd` working as the stable fallback; each subsystem is replaced only after the .NET implementation reaches feature parity and passes regression checks against v0.14.1.

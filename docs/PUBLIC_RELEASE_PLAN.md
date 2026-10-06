@@ -82,7 +82,7 @@ v0.13.1에서 확보된 기능:
 
 ## 3. 권장 프로젝트 구조
 
-PowerShell 단일 파일을 계속 확장하지 않고 .NET 기반 정식 앱으로 전환한다.
+과거 PowerShell 실행본은 `archive/`에 고정하고, .NET 기반 정식 앱을 `src/`에서 개발한다.
 
 ```text
 VirtualQHDMirror/
@@ -104,12 +104,13 @@ VirtualQHDMirror/
 ├─ driver/
 │  └─ VirtualDisplay/
 ├─ installer/
-├─ Docs/
-├─ VirtualQHDMirror.ps1
+├─ archive/
+│  ├─ v0.12/
+│  ├─ v0.13.1/
+│  └─ v0.14.1/
+├─ docs/
 ├─ run.cmd
-├─ scripts/
-├─ prototype/
-│  └─ v0.12/   # frozen historical baseline
+├─ run-v020.cmd
 ├─ .github/
 │  └─ workflows/         # release-only automation when explicitly approved
 ├─ LICENSE
@@ -136,7 +137,7 @@ VirtualQHDMirror/
 
 작업:
 
-- `prototype/v0.12/` historical baseline 유지
+- `archive/v0.12/` historical baseline 유지
 - `archive/v0.13.1/` 이전 안정판 유지
 - `archive/v0.14.1/` 현재 runnable fallback 유지
 - 사용 중인 단축키, 입력 동작, 렌더 모드 문서화
@@ -147,7 +148,7 @@ VirtualQHDMirror/
 완료 조건:
 
 - 새 구현에서 기능 회귀가 발생하면 v0.12와 즉시 비교 가능
-- prototype 디렉터리는 이후 정식 코드와 분리하여 보존
+- historical PowerShell baselines are preserved only under `archive/`
 
 ---
 
@@ -347,7 +348,7 @@ Adaptive 정책은 v0.12의 60/30/15 FPS 아이디어를 유지하되 GPU 기반
 
 공개 배포의 가장 중요한 외부 의존성이며, **구현 순서상 Phase B 직후 전략을 확정해야 하는 P0 gate**다.
 
-상세 온보딩 계획은 `Docs/DRIVER_ONBOARDING_PLAN.md`를 따른다.
+상세 온보딩 계획은 `docs/DRIVER_ONBOARDING_PLAN.md`를 따른다.
 
 결정해야 할 사항:
 
@@ -594,7 +595,7 @@ Installer 책임:
 
 ## Phase L — GitHub / Release Automation
 
-기본 원칙은 `Docs/REPOSITORY_OPERATION_RULES.md`를 따른다.
+기본 원칙은 `docs/REPOSITORY_OPERATION_RULES.md`를 따른다.
 
 개발 중에는 GitHub Actions를 기본 CI로 사용하지 않는다.
 
@@ -625,7 +626,7 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 
 ### v0.13.1
 
-- 현재 루트 실행 기준선
+- `archive/v0.13.1/` historical baseline
 - DWM Peek 격리
 - 표준 caption button 직접 처리
 - custom chrome / shell용 virtual-desktop absolute SendInput fallback

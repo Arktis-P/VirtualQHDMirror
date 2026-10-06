@@ -18,10 +18,10 @@ Startup failures use a WinForms error dialog. The previous blocking console Read
 
 ## No-console launcher
 
-Use `VirtualQHDMirror.vbs` for normal operation. It starts the PowerShell host through Windows Script Host without showing a console window.
+Use root `run.cmd` for normal stable operation. It launches `archive/v0.14.1/VirtualQHDMirror.vbs`, which starts the PowerShell host through Windows Script Host without showing a console window.
 
-The root `run.cmd` is only a convenience bridge: it launches `VirtualQHDMirror.vbs` and immediately exits.
+The root `run.cmd` is a convenience bridge to the frozen v0.14.1 launcher and immediately exits.
 
 ## Diagnostics
 
-Use `scripts/run-console.cmd` when a persistent console is useful for development. Fixed-FPS CMD launchers remain available for regression testing.
+Use `archive/v0.14.1/scripts/run-console.cmd` when a persistent console is useful for regression testing. Fixed-FPS fallback launchers remain in the same archived scripts directory.

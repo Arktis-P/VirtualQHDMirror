@@ -6,14 +6,14 @@ This file contains repository-wide instructions for AI coding agents and automat
 
 Before making changes, read:
 
-- `Docs/COMMIT_CONVENTION.md`
-- `Docs/REPOSITORY_OPERATION_RULES.md`
-- `Docs/PUBLIC_RELEASE_PLAN.md` when work relates to the public-release roadmap
-- `Docs/DRIVER_ONBOARDING_PLAN.md` when work relates to virtual display setup, packaging, installation, or recovery
+- `docs/COMMIT_CONVENTION.md`
+- `docs/REPOSITORY_OPERATION_RULES.md`
+- `docs/PUBLIC_RELEASE_PLAN.md` when work relates to the public-release roadmap
+- `docs/DRIVER_ONBOARDING_PLAN.md` when work relates to virtual display setup, packaging, installation, or recovery
 
 ## Commit messages
 
-All commits in this repository MUST follow the emoji-prefixed convention documented in `Docs/COMMIT_CONVENTION.md`.
+All commits in this repository MUST follow the emoji-prefixed convention documented in `docs/COMMIT_CONVENTION.md`.
 
 Required shape:
 
@@ -34,7 +34,7 @@ Do not create vague or emoji-less commit messages unless the repository owner ex
 
 ## GitHub resource and push policy
 
-The repository-wide resource rules in `Docs/REPOSITORY_OPERATION_RULES.md` are mandatory.
+The repository-wide resource rules in `docs/REPOSITORY_OPERATION_RULES.md` are mandatory.
 
 In particular:
 
@@ -50,16 +50,17 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 
 ## Repository baseline
 
-- Current working implementation: repository-root `VirtualQHDMirror.ps1` (**v0.14.1 stable prototype**)
+- Stable runnable fallback: `archive/v0.14.1/`
+- Stable root entry point: `run.cmd`
+- Public-release development entry point: `run-v020.cmd`
 - Public-release migration branch: `gpt/public-release-v0.20`
-- Recommended no-console launcher for the stable prototype: repository-root `VirtualQHDMirror.vbs`
-- Convenience bridge: repository-root `run.cmd`
-- Auxiliary/diagnostic launchers: `scripts/`
-- v0.14 primary input design: `Docs/V014_PORTAL_INPUT.md`
-- captured fallback notes: `Docs/V014_CAPTURED_INPUT.md`
-- runnable v0.14.1 archive: `archive/v0.14.1/`
-- runnable v0.13.1 archive: `archive/v0.13.1/`
-- Frozen historical comparison baseline: `prototype/v0.12/`
-- Public release roadmap: `Docs/PUBLIC_RELEASE_PLAN.md`
+- Public-release .NET code: `src/`
+- Active documentation: `docs/`
+- Historical runnable baselines: `archive/v0.12/`, `archive/v0.13.1/`, `archive/v0.14.1/`
+- v0.14 primary input design: `docs/V014_PORTAL_INPUT.md`
+- captured fallback notes: `docs/V014_CAPTURED_INPUT.md`
+- Public release roadmap: `docs/PUBLIC_RELEASE_PLAN.md`
 
-Do not create a new `prototype/v0.xx/` directory for each incremental revision. Keep the stable PowerShell prototype intact while the .NET public-release path is built alongside it. Do not remove the prototype as the normal fallback until the replacement reaches functional parity and passes regression validation.
+Archived version directories are frozen snapshots. Do not rewrite their internal layout merely to match current repository conventions.
+
+Keep the stable `run.cmd` fallback working while the .NET public-release path is built alongside it. Do not remove the v0.14.1 archive as the normal fallback until the replacement reaches functional parity and passes regression validation.

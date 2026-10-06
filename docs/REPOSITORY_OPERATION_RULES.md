@@ -40,7 +40,7 @@ Two levels are used:
 A normal checkpoint is an internal development boundary such as a finished subtask, refactor, test addition, or documentation update.
 
 - Create as many focused commits as needed.
-- Commits should remain reviewable and follow `Docs/COMMIT_CONVENTION.md`.
+- Commits should remain reviewable and follow `docs/COMMIT_CONVENTION.md`.
 - A normal checkpoint does **not** require a remote push.
 
 ### Major checkpoint

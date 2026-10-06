@@ -46,7 +46,7 @@ This avoids the v0.13 behavior where the cursor repeatedly jumped between source
 - caption command handling
 - taskbar/custom-chrome native fallback sessions
 
-Use `scripts/run-legacy-input.cmd` only for comparison and regression recovery.
+Use `archive/v0.14.1/scripts/run-legacy-input.cmd` only for comparison and regression recovery.
 
 ## Expected improvements
 

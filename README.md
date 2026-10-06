@@ -1,89 +1,86 @@
 # VirtualQHDMirror
 
-VirtualQHDMirror mirrors a virtual 2560x1440 Windows desktop onto a physical 1920x1080 monitor and lets the physical FHD monitor act as an interactive portal to the virtual QHD desktop.
+VirtualQHDMirror makes a lower-resolution physical Windows display act as an interactive view of a higher-resolution virtual desktop.
 
-## Current development baseline
+The repository currently has two execution tracks:
 
-- Version: v0.14.1
-- Branch: v0.14
-- Target topology: 1 | 2 | 3
-  - 1: laptop display
-  - 2: physical FHD mirror
-  - 3: virtual QHD source
-- Default input mode: Portal
-- Diagnostic fallbacks: Captured and Legacy
-- Cursor renderer: stable frame-synced source cursor composition (experimental overlay code removed)
-- Full-frame modes: Adaptive / 30 / 60 / experimental 120 FPS
-
-## v0.14.1 Portal input
-
-The default v0.14.1 path removes the manual capture/release workflow.
-
-When the system pointer enters display 2, VirtualQHDMirror maps that position to display 3 and lets Windows handle the interaction natively on the source. The source cursor is rendered back onto the mirror.
-
-A temporary source-bound cursor constraint is used only while the pointer is inside the portal so native taskbar/title-bar/hover behavior remains stable. It is released automatically at a portal edge. There is no normal Ctrl+Alt+F11 release step.
-
-The entry edge is blocked until the pointer has moved inward, preventing an immediate bounce back to the monitor it came from.
-
-When the mirrored pointer reaches an edge that has a real Windows monitor on the other side, the constraint is released and the pointer is placed just across the matching display-2 boundary. This preserves normal 1 -> 2 -> 3 and 3 -> 2 -> 1 navigation.
-
-## Why not MagSetInputTransform as the default
-
-MagSetInputTransform was evaluated because its coordinate-routing model matches the desired UX. Microsoft requires UIAccess for that API, and Windows treats UIAccess as a highly trusted accessibility mechanism. v0.14.1 therefore does not make UIAccess a runtime requirement.
+- **v0.14.1 stable fallback** — frozen PowerShell implementation under `archive/v0.14.1/`.
+- **v0.20 public-release migration** — .NET/WPF implementation under `src/`, currently focused on display discovery and topology assessment.
 
 ## Run
 
-For normal use, double-click **VirtualQHDMirror.vbs**. It launches the PowerShell host without a visible console, while the app itself shows the GUI loading window and GUI startup errors.
+### Stable v0.14.1
 
-- VirtualQHDMirror.vbs: recommended no-console launcher
-- run.cmd: convenience bridge to VirtualQHDMirror.vbs
-- scripts/run-console.cmd: diagnostic console launcher
-- scripts/run-30fps.cmd: Portal input, 30 FPS
-- scripts/run-60fps.cmd: Portal input, 60 FPS
-- scripts/run-120fps.cmd: Portal input, experimental 120 FPS
-- scripts/run-captured-input.cmd: earlier captured experiment
-- scripts/run-legacy-input.cmd: v0.13.1-style input path
+Double-click:
 
-## Runnable archives
+```text
+run.cmd
+```
 
-Frozen fallback snapshots are kept under `archive/`.
+The root launcher hands off to the frozen `archive/v0.14.1/` implementation. The archived files are not edited during v0.20 development.
 
-- `archive/v0.14.1/`: Portal-era fallback including GUI startup and the 120 FPS experiment
-- `archive/v0.13.1/`: earlier v0.13.1 baseline
+### v0.20 development shell
 
-For normal fallback use of v0.14.1, launch:
+Double-click:
 
-`archive/v0.14.1/VirtualQHDMirror.vbs`
+```text
+run-v020.cmd
+```
 
-## Hotkeys
+This runs:
 
-- Ctrl+Alt+F12: exit
-- Ctrl+Alt+F11: no-op in Portal mode
-- Ctrl+Alt+F10: diagnostic overlay
-- Ctrl+Alt+F9: render mode cycle (Adaptive -> 30 -> 60 -> 120 -> Adaptive)
+```text
+src/VirtualQHDMirror.App/VirtualQHDMirror.App.csproj
+```
 
-## v0.14.1 validation focus
+and currently opens the display-preflight UI that identifies active Physical / Virtual / Unknown displays and assesses available FHD↔QHD pair topology.
 
-1. Move from laptop display 1 into mirror display 2 without clicking to capture.
-2. Move across display 2 and verify the source cursor tracks the mirror.
-3. Push left from display 2 and return to display 1 without a hotkey.
-4. Push right from display 2 and enter virtual display 3 without a hotkey.
-5. Verify grouped taskbar thumbnails and hover remain stable.
-6. Verify minimize/maximize/close, drag and resize.
-7. Verify Unity/Electron/Chromium custom title bars.
-8. Verify wheel and XButtons.
-9. Verify Arrow, I-beam, Hand and resize cursor alignment.
+`run-v020.cmd` requires the .NET 8 SDK during development.
 
+## Repository layout
 
-## v0.14.1 latency work
+```text
+VirtualQHDMirror/
+├─ archive/
+│  ├─ v0.12/      # historical PowerShell baseline
+│  ├─ v0.13.1/    # earlier runnable fallback
+│  └─ v0.14.1/    # current stable runnable fallback
+├─ docs/           # active design, roadmap, workflow and migration notes
+├─ src/
+│  ├─ VirtualQHDMirror.App/
+│  ├─ VirtualQHDMirror.Core/
+│  └─ VirtualQHDMirror.DriverManager/
+├─ AGENTS.md
+├─ Directory.Build.props
+├─ README.md
+├─ VirtualQHDMirror.sln
+├─ run.cmd
+└─ run-v020.cmd
+```
 
-The dedicated transparent cursor overlay experiment is temporarily disabled because it caused cursor disappearance on the Windows target setup. v0.14.1 currently uses the stable frame-synced source cursor composition path.
+Archived snapshots keep their original internal layout for reproducibility. Active development uses lowercase `docs/`.
 
-The 120 FPS full-frame mode remains available for latency comparison. On a 60 Hz physical monitor it can reduce frame age slightly, but it cannot display more than the monitor refresh rate and it increases GDI copy load.
+## Current v0.20 focus
 
+The first public-release stage is read-only display preflight:
 
-## v0.14.1 startup UI
+- enumerate active Windows display paths,
+- classify Physical / Virtual / Unknown,
+- retain Internal / External as placement metadata rather than a hard eligibility rule,
+- identify FHD physical candidates and QHD virtual candidates,
+- avoid arbitrary pairing when multiple candidates exist,
+- prepare for later driver setup, persistent pairing and multi-monitor sessions.
 
-Startup now uses a small WinForms loading window while the embedded mirror engine is prepared. Startup errors are shown in a GUI error dialog instead of waiting for console input.
+See `docs/PUBLIC_RELEASE_PLAN.md` and `docs/V020_DISPLAY_DISCOVERY.md`.
 
-The normal-use no-console launcher is `VirtualQHDMirror.vbs`. The root `run.cmd` now hands off to that launcher and exits immediately; `scripts/run-console.cmd` remains available for diagnostics.
+## Stable fallback notes
+
+The v0.14.1 fallback still contains the proven Portal input path, GUI startup, cursor composition and Adaptive / 30 / 60 / experimental 120 FPS render modes.
+
+Its auxiliary launchers are intentionally kept only inside:
+
+```text
+archive/v0.14.1/scripts/
+```
+
+so the active repository root does not duplicate frozen fallback files.
