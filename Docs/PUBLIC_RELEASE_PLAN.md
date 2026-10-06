@@ -196,13 +196,22 @@ Preflight가 먼저 확인할 것:
 ### Destination 후보
 
 1. 실제 물리 모니터
-2. 내장 패널 제외
-3. 가상 디스플레이 제외
-4. HDMI / DisplayPort 등 외부 출력 우선
-5. 현재 1920×1080 또는 해당 모드 지원
-6. 마지막 사용 EDID / device path 일치 우선
+2. 가상 디스플레이 제외
+3. 현재 공개판 기본 profile에서는 1920×1080 물리 화면
+4. 내장/외장은 후보 제외 기준이 아니라 placement/preference metadata로만 사용
+5. 마지막 사용 monitor device path / persistent identity 일치 우선
 
-여러 후보가 있으면 처음 한 번 사용자에게 선택시키고 persistent ID를 저장한다.
+### Topology 판정
+
+단일 모니터 노트북을 가정하지 않는다.
+
+- 물리 FHD 1 + 가상 QHD 1: 단일 pair 자동 추천 가능
+- 물리 FHD 2+ + 가상 QHD 1: 자동 pairing 금지; 단일 대상 선택 / 동일 source 복제 / 추가 virtual source 생성 중 정책 필요
+- 물리 FHD 1 + 가상 QHD 2+: source 선택 필요
+- 물리 FHD 2+ + 가상 QHD 2+: 최대 `min(physical, virtual)`개의 독립 1:1 session 구성 가능
+- 모든 물리 FHD를 독립적인 QHD 작업공간으로 쓰려면 물리 target 수만큼 virtual QHD source가 필요
+
+여러 후보가 있으면 임의 순번으로 선택하지 않고 전체 후보와 topology 상태를 반환하며, 이후 UI/저장 설정에서 pair를 결정한다.
 
 완료 조건:
 

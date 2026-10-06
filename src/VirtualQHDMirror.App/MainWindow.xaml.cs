@@ -29,6 +29,7 @@ public partial class MainWindow : Window
                 Name = display.FriendlyName,
                 Kind = display.Kind.ToString(),
                 Resolution = display.Resolution,
+                Placement = display.Placement,
                 Connector = display.OutputTechnology,
                 Source = display.SourceName,
                 Reason = display.ClassificationReason
@@ -45,11 +46,13 @@ public partial class MainWindow : Window
 
             PhysicalSummaryText.Text = result.PhysicalDestinationState switch
             {
+                CandidateSelectionState.SingleCandidate when result.Topology.CanAutoPairSingleSession =>
+                    $"1 physical FHD destination: {result.RecommendedPhysicalDestination!.FriendlyName} ({result.RecommendedPhysicalDestination.Placement})",
                 CandidateSelectionState.SingleCandidate =>
-                    $"1 external FHD destination: {result.RecommendedPhysicalDestination!.FriendlyName}",
+                    $"1 physical FHD destination found; source pairing still requires a choice",
                 CandidateSelectionState.MultipleCandidates =>
-                    $"{result.PhysicalFhdCandidates.Count} external FHD destinations found — no automatic choice yet",
-                _ => $"No external FHD destination found ({result.PhysicalDisplays.Count} physical display(s) identified)"
+                    $"{result.PhysicalFhdCandidates.Count} physical FHD destinations found — pairing policy required",
+                _ => $"No physical FHD destination found ({result.PhysicalDisplays.Count} physical display(s) identified)"
             };
 
             StatusText.Text = string.Join(Environment.NewLine, result.Messages);

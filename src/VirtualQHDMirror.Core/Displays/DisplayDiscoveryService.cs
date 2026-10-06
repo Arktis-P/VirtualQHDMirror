@@ -125,18 +125,27 @@ public sealed class DisplayDiscoveryService
             .ToArray();
 
         var physicalFhdCandidates = physicalDisplays
-            .Where(IsPhysicalDestinationCandidate)
+            .Where(IsDefaultPhysicalDestinationCandidate)
             .Where(display => display.IsFhd)
+            .ToArray();
+
+        var externalPhysicalFhdCandidates = physicalFhdCandidates
+            .Where(display => display.IsExternal)
+            .ToArray();
+
+        var internalPhysicalFhdCandidates = physicalFhdCandidates
+            .Where(display => display.IsInternal)
             .ToArray();
 
         var virtualState = GetSelectionState(virtualQhdCandidates.Length);
         var physicalState = GetSelectionState(physicalFhdCandidates.Length);
+        var topology = AssessTopology(virtualQhdCandidates, physicalFhdCandidates);
 
-        var recommendedVirtualSource = virtualState == CandidateSelectionState.SingleCandidate
+        var recommendedVirtualSource = topology.CanAutoPairSingleSession
             ? virtualQhdCandidates[0]
             : null;
 
-        var recommendedPhysicalDestination = physicalState == CandidateSelectionState.SingleCandidate
+        var recommendedPhysicalDestination = topology.CanAutoPairSingleSession
             ? physicalFhdCandidates[0]
             : null;
 
@@ -146,11 +155,14 @@ public sealed class DisplayDiscoveryService
             PhysicalDisplays: physicalDisplays,
             VirtualQhdCandidates: virtualQhdCandidates,
             PhysicalFhdCandidates: physicalFhdCandidates,
+            ExternalPhysicalFhdCandidates: externalPhysicalFhdCandidates,
+            InternalPhysicalFhdCandidates: internalPhysicalFhdCandidates,
             VirtualSourceState: virtualState,
             PhysicalDestinationState: physicalState,
             RecommendedVirtualSource: recommendedVirtualSource,
             RecommendedPhysicalDestination: recommendedPhysicalDestination,
-            Messages: BuildMessages(virtualQhdCandidates, physicalFhdCandidates));
+            Topology: topology,
+            Messages: BuildMessages(virtualQhdCandidates, physicalFhdCandidates, topology));
     }
 
     private static void ValidateNativeLayouts()
@@ -369,9 +381,9 @@ public sealed class DisplayDiscoveryService
         return false;
     }
 
-    private static bool IsPhysicalDestinationCandidate(DisplayEndpoint display)
+    private static bool IsDefaultPhysicalDestinationCandidate(DisplayEndpoint display)
     {
-        if (display.Kind != DisplayDeviceKind.Physical || display.IsInternal)
+        if (display.Kind != DisplayDeviceKind.Physical)
         {
             return false;
         }
@@ -495,9 +507,91 @@ public sealed class DisplayDiscoveryService
             _ => CandidateSelectionState.MultipleCandidates
         };
 
-    private static IReadOnlyList<string> BuildMessages(
+    private static MirrorTopologyAssessment AssessTopology(
         IReadOnlyList<DisplayEndpoint> virtualQhdCandidates,
         IReadOnlyList<DisplayEndpoint> physicalFhdCandidates)
+    {
+        var virtualCount = virtualQhdCandidates.Count;
+        var physicalCount = physicalFhdCandidates.Count;
+        var independentPairCapacity = Math.Min(virtualCount, physicalCount);
+        var additionalVirtualSources = Math.Max(0, physicalCount - virtualCount);
+
+        if (virtualCount == 0)
+        {
+            return new MirrorTopologyAssessment(
+                MirrorTopologyKind.MissingVirtualSource,
+                virtualCount,
+                physicalCount,
+                independentPairCapacity,
+                additionalVirtualSources,
+                false,
+                physicalCount == 0
+                    ? "No virtual QHD source or physical FHD destination is ready."
+                    : $"{physicalCount} physical FHD destination(s) found, but no virtual QHD source is active.");
+        }
+
+        if (physicalCount == 0)
+        {
+            return new MirrorTopologyAssessment(
+                MirrorTopologyKind.MissingPhysicalDestination,
+                virtualCount,
+                physicalCount,
+                independentPairCapacity,
+                additionalVirtualSources,
+                false,
+                $"{virtualCount} virtual QHD source(s) found, but no physical FHD destination is ready.");
+        }
+
+        if (virtualCount == 1 && physicalCount == 1)
+        {
+            return new MirrorTopologyAssessment(
+                MirrorTopologyKind.SinglePairReady,
+                virtualCount,
+                physicalCount,
+                1,
+                0,
+                true,
+                "Exactly one virtual QHD source and one physical FHD destination are available.");
+        }
+
+        if (virtualCount == 1)
+        {
+            return new MirrorTopologyAssessment(
+                MirrorTopologyKind.OneVirtualToMultiplePhysical,
+                virtualCount,
+                physicalCount,
+                independentPairCapacity,
+                additionalVirtualSources,
+                false,
+                $"One virtual QHD source and {physicalCount} physical FHD destinations are available. Choose one destination, duplicate one source to several destinations, or create additional virtual sources for independent 1:1 sessions.");
+        }
+
+        if (physicalCount == 1)
+        {
+            return new MirrorTopologyAssessment(
+                MirrorTopologyKind.MultipleVirtualToOnePhysical,
+                virtualCount,
+                physicalCount,
+                independentPairCapacity,
+                0,
+                false,
+                $"{virtualCount} virtual QHD sources and one physical FHD destination are available. Source selection is required.");
+        }
+
+        return new MirrorTopologyAssessment(
+            MirrorTopologyKind.MultipleVirtualAndPhysical,
+            virtualCount,
+            physicalCount,
+            independentPairCapacity,
+            additionalVirtualSources,
+            false,
+            $"{virtualCount} virtual QHD sources and {physicalCount} physical FHD destinations are available. Up to {independentPairCapacity} independent 1:1 mirror session(s) can be paired with the current topology.");
+    }
+
+    private static IReadOnlyList<string> BuildMessages(
+        IReadOnlyList<DisplayEndpoint> virtualQhdCandidates,
+        IReadOnlyList<DisplayEndpoint> physicalFhdCandidates,
+        MirrorTopologyAssessment topology)
     {
         var messages = new List<string>();
 
@@ -505,15 +599,23 @@ public sealed class DisplayDiscoveryService
         {
             0 => "No active 2560 × 1440 virtual display was identified.",
             1 => $"Virtual QHD source identified: {virtualQhdCandidates[0].FriendlyName}.",
-            _ => $"{virtualQhdCandidates.Count} virtual QHD sources were identified; source selection is ambiguous."
+            _ => $"{virtualQhdCandidates.Count} virtual QHD sources were identified."
         });
 
         messages.Add(physicalFhdCandidates.Count switch
         {
-            0 => "No external physical 1920 × 1080 destination was identified.",
-            1 => $"Physical FHD destination identified: {physicalFhdCandidates[0].FriendlyName}.",
-            _ => $"{physicalFhdCandidates.Count} physical FHD destinations were identified; VQM will not choose one automatically yet."
+            0 => "No physical 1920 × 1080 destination was identified.",
+            1 => $"Physical FHD destination identified: {physicalFhdCandidates[0].FriendlyName} ({physicalFhdCandidates[0].Placement}).",
+            _ => $"{physicalFhdCandidates.Count} physical FHD destinations were identified; VQM will not choose or pair them automatically yet."
         });
+
+        messages.Add(topology.Summary);
+
+        if (topology.AdditionalVirtualSourcesForFullPairing > 0)
+        {
+            messages.Add(
+                $"{topology.AdditionalVirtualSourcesForFullPairing} additional virtual QHD source(s) would be required to give every physical FHD destination an independent 1:1 virtual workspace.");
+        }
 
         return messages;
     }

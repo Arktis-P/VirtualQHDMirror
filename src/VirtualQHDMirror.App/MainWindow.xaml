@@ -84,13 +84,16 @@
                     <GridViewColumn Width="110"
                                     Header="Resolution"
                                     DisplayMemberBinding="{Binding Resolution}" />
-                    <GridViewColumn Width="145"
+                    <GridViewColumn Width="95"
+                                    Header="Placement"
+                                    DisplayMemberBinding="{Binding Placement}" />
+                    <GridViewColumn Width="130"
                                     Header="Connector"
                                     DisplayMemberBinding="{Binding Connector}" />
-                    <GridViewColumn Width="100"
+                    <GridViewColumn Width="95"
                                     Header="Source"
                                     DisplayMemberBinding="{Binding Source}" />
-                    <GridViewColumn Width="270"
+                    <GridViewColumn Width="220"
                                     Header="Why"
                                     DisplayMemberBinding="{Binding Reason}" />
                 </GridView>
