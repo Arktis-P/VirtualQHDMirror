@@ -12,7 +12,7 @@ VirtualQHDMirror mirrors a virtual 2560x1440 Windows desktop onto a physical 192
   - 3: virtual QHD source
 - Default input mode: Portal
 - Diagnostic fallbacks: Captured and Legacy
-- Cursor renderer: stable frame-synced source cursor composition
+- Cursor renderer: stable frame-synced source cursor composition (experimental overlay code removed)
 - Full-frame modes: Adaptive / 30 / 60 / experimental 120 FPS
 
 ## v0.14.1 Portal input

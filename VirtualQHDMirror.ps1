@@ -136,7 +136,6 @@ public sealed class MirrorV0141 : Form
     const int HK_EXIT=1, HK_INPUT=2, HK_OVERLAY=3, HK_MODE=4;
     const int VK_F9=0x78, VK_F10=0x79, VK_F11=0x7A, VK_F12=0x7B;
     const int WS_EX_NOACTIVATE=0x08000000, WS_EX_TOOLWINDOW=0x80;
-    const int WS_EX_TRANSPARENT=0x20, WS_EX_LAYERED=0x00080000;
     const uint SWP_NOSIZE=0x0001, SWP_NOZORDER=0x0004, SWP_NOACTIVATE=0x0010;
 
     const int SW_RESTORE=9, SW_MAXIMIZE=3;
@@ -223,178 +222,6 @@ public sealed class MirrorV0141 : Form
         public int HotY=0;
     }
 
-    sealed class CursorOverlayV0141 : Form
-    {
-        readonly Rectangle sourceRect;
-        readonly int pollHz;
-        readonly System.Windows.Forms.Timer cursorTimer;
-        readonly Dictionary<IntPtr,CursorShape> shapes=new Dictionary<IntPtr,CursorShape>();
-
-        CURSORINFO current;
-        bool currentVisible=false;
-        Rectangle currentDrawRect=Rectangle.Empty;
-        bool timerResolutionRaised=false;
-
-        public CursorOverlayV0141(Rectangle source,Rectangle destination,int requestedHz) {
-            sourceRect=source;
-            pollHz=requestedHz<=60?60:(requestedHz>=240?240:120);
-
-            Text="VirtualQHDMirror v0.14.1 Cursor";
-            FormBorderStyle=FormBorderStyle.None;
-            StartPosition=FormStartPosition.Manual;
-            Bounds=destination;
-            BackColor=Color.Fuchsia;
-            TransparencyKey=Color.Fuchsia;
-            TopMost=true;
-            ShowInTaskbar=false;
-            DoubleBuffered=true;
-
-            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);
-
-            cursorTimer=new System.Windows.Forms.Timer();
-            cursorTimer.Interval=Math.Max(4,(int)Math.Round(1000.0/pollHz));
-            cursorTimer.Tick+=delegate{ PollCursor(); };
-
-            Shown+=delegate{
-                Bounds=destination;
-                if(timeBeginPeriod(1)==0)timerResolutionRaised=true;
-                cursorTimer.Start();
-            };
-
-            FormClosed+=delegate{
-                cursorTimer.Stop();
-                if(timerResolutionRaised)timeEndPeriod(1);
-            };
-        }
-
-        protected override CreateParams CreateParams {
-            get {
-                var cp=base.CreateParams;
-                cp.ExStyle|=WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_TRANSPARENT|WS_EX_LAYERED;
-                return cp;
-            }
-        }
-
-        protected override bool ShowWithoutActivation { get { return true; } }
-
-        protected override void WndProc(ref Message m) {
-            if(m.Msg==WM_NCHITTEST) {
-                m.Result=new IntPtr(-1);
-                return;
-            }
-            base.WndProc(ref m);
-        }
-
-        CursorShape Shape(IntPtr cursor) {
-            CursorShape cached;
-            if(shapes.TryGetValue(cursor,out cached))return cached;
-
-            var shape=new CursorShape();
-            ICONINFO ii;
-            if(GetIconInfo(cursor,out ii)) {
-                shape.HotX=(int)ii.xHotspot;
-                shape.HotY=(int)ii.yHotspot;
-                try {
-                    BITMAP bm=new BITMAP();
-                    if(ii.hbmColor!=IntPtr.Zero &&
-                       GetObject(ii.hbmColor,Marshal.SizeOf(typeof(BITMAP)),ref bm)>0) {
-                        shape.Width=Math.Max(1,bm.bmWidth);
-                        shape.Height=Math.Max(1,Math.Abs(bm.bmHeight));
-                    }
-                    else if(ii.hbmMask!=IntPtr.Zero &&
-                            GetObject(ii.hbmMask,Marshal.SizeOf(typeof(BITMAP)),ref bm)>0) {
-                        shape.Width=Math.Max(1,bm.bmWidth);
-                        shape.Height=Math.Max(1,Math.Abs(bm.bmHeight)/2);
-                    }
-                }
-                finally {
-                    if(ii.hbmMask!=IntPtr.Zero)DeleteObject(ii.hbmMask);
-                    if(ii.hbmColor!=IntPtr.Zero)DeleteObject(ii.hbmColor);
-                }
-            }
-
-            shapes[cursor]=shape;
-            return shape;
-        }
-
-        Rectangle CursorRect(CURSORINFO ci) {
-            double scaleX=ClientSize.Width/(double)sourceRect.Width;
-            double scaleY=ClientSize.Height/(double)sourceRect.Height;
-            var shape=Shape(ci.hCursor);
-
-            int hotspotX=(int)Math.Round(shape.HotX*scaleX);
-            int hotspotY=(int)Math.Round(shape.HotY*scaleY);
-            int drawW=Math.Max(1,(int)Math.Round(shape.Width*scaleX));
-            int drawH=Math.Max(1,(int)Math.Round(shape.Height*scaleY));
-
-            int dx=(int)Math.Round((ci.ptScreenPos.X-sourceRect.Left)*scaleX)-hotspotX;
-            int dy=(int)Math.Round((ci.ptScreenPos.Y-sourceRect.Top )*scaleY)-hotspotY;
-            return new Rectangle(dx,dy,drawW,drawH);
-        }
-
-        void PollCursor() {
-            CURSORINFO next=new CURSORINFO();
-            next.cbSize=Marshal.SizeOf(typeof(CURSORINFO));
-
-            bool nextVisible=false;
-            Rectangle nextRect=Rectangle.Empty;
-
-            if(GetCursorInfo(ref next) &&
-               (next.flags&CURSOR_SHOWING)!=0 &&
-               next.hCursor!=IntPtr.Zero &&
-               next.ptScreenPos.X>=sourceRect.Left&&next.ptScreenPos.X<sourceRect.Right&&
-               next.ptScreenPos.Y>=sourceRect.Top&&next.ptScreenPos.Y<sourceRect.Bottom) {
-                nextVisible=true;
-                nextRect=CursorRect(next);
-            }
-
-            bool changed=
-                nextVisible!=currentVisible ||
-                (nextVisible && (!currentVisible ||
-                    next.hCursor!=current.hCursor ||
-                    next.ptScreenPos.X!=current.ptScreenPos.X ||
-                    next.ptScreenPos.Y!=current.ptScreenPos.Y));
-
-            if(!changed)return;
-
-            Rectangle dirty=Rectangle.Empty;
-            if(currentVisible)dirty=currentDrawRect;
-            if(nextVisible)dirty=dirty.IsEmpty?nextRect:Rectangle.Union(dirty,nextRect);
-            if(!dirty.IsEmpty)dirty.Inflate(3,3);
-
-            current=next;
-            currentVisible=nextVisible;
-            currentDrawRect=nextRect;
-
-            if(!dirty.IsEmpty) {
-                Invalidate(dirty);
-                Update();
-            }
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs e) {
-            using(var b=new SolidBrush(BackColor))
-                e.Graphics.FillRectangle(b,e.ClipRectangle);
-        }
-
-        protected override void OnPaint(PaintEventArgs e) {
-            if(!currentVisible||current.hCursor==IntPtr.Zero)return;
-
-            IntPtr hdc=e.Graphics.GetHdc();
-            try {
-                DrawIconEx(
-                    hdc,
-                    currentDrawRect.X,currentDrawRect.Y,
-                    current.hCursor,
-                    currentDrawRect.Width,currentDrawRect.Height,
-                    0,IntPtr.Zero,DI_NORMAL);
-            }
-            finally {
-                e.Graphics.ReleaseHdc(hdc);
-            }
-        }
-    }
-
     static List<Mon> Monitors() {
         var list=new List<Mon>();
         EnumDisplayMonitors(IntPtr.Zero,IntPtr.Zero,
@@ -418,12 +245,7 @@ public sealed class MirrorV0141 : Form
     IntPtr dstDC=IntPtr.Zero;
     readonly System.Windows.Forms.Timer timer;
     readonly string inputMode;
-    readonly int cursorHz;
 
-    Thread cursorOverlayThread=null;
-    CursorOverlayV0141 cursorOverlay=null;
-    readonly ManualResetEvent cursorOverlayReady=new ManualResetEvent(false);
-    volatile bool cursorOverlayAvailable=false;
     bool timerResolutionRaised=false;
     double lastRenderCostMs=0.0;
 
@@ -489,9 +311,8 @@ public sealed class MirrorV0141 : Form
 
     public static void EnableDpi(){ try{SetProcessDpiAwarenessContext(PMV2);}catch{} }
 
-    public MirrorV0141(string srcName,string dstName,string mode,string requestedInputMode,int requestedCursorHz) {
+    public MirrorV0141(string srcName,string dstName,string mode,string requestedInputMode) {
         renderMode=mode;
-        cursorHz=requestedCursorHz<=60?60:(requestedCursorHz>=240?240:120);
         if(String.Equals(requestedInputMode,"legacy",StringComparison.OrdinalIgnoreCase)) inputMode="legacy";
         else if(String.Equals(requestedInputMode,"captured",StringComparison.OrdinalIgnoreCase)) inputMode="captured";
         else inputMode="portal";
@@ -534,10 +355,6 @@ public sealed class MirrorV0141 : Form
             SetStretchBltMode(dstDC,HALFTONE);
             SetBrushOrgEx(dstDC,0,0,IntPtr.Zero);
 
-            // Dedicated cursor overlay is disabled after a Windows compositing regression.
-            // Keep the stable in-frame cursor path as the default until the overlay is reworked.
-            cursorOverlayAvailable=false;
-
             RegisterHotKey(Handle,HK_EXIT,MOD_CONTROL|MOD_ALT,VK_F12);
             RegisterHotKey(Handle,HK_INPUT,MOD_CONTROL|MOD_ALT,VK_F11);
             RegisterHotKey(Handle,HK_OVERLAY,MOD_CONTROL|MOD_ALT,VK_F10);
@@ -548,7 +365,6 @@ public sealed class MirrorV0141 : Form
         };
 
         FormClosed+=delegate{
-            StopCursorOverlay();
             if(portalActive) EndPortalToDestination();
             else if(capturedInput) EndCapturedInput();
             else ReleaseCursorClip(IntPtr.Zero);
@@ -642,54 +458,6 @@ public sealed class MirrorV0141 : Form
     void MarkInput() {
         lastInput=DateTime.UtcNow;
         if(renderMode=="adaptive") ApplyInterval(16);
-    }
-
-    void StartCursorOverlay() {
-        cursorOverlayReady.Reset();
-        cursorOverlayAvailable=false;
-
-        cursorOverlayThread=new Thread(new ThreadStart(delegate{
-            try {
-                var local=new CursorOverlayV0141(src.Rect,dst.Rect,cursorHz);
-                cursorOverlay=local;
-                cursorOverlayAvailable=true;
-                cursorOverlayReady.Set();
-                Application.Run(local);
-            }
-            catch {
-                cursorOverlayAvailable=false;
-                cursorOverlayReady.Set();
-            }
-            finally {
-                cursorOverlayAvailable=false;
-                cursorOverlay=null;
-            }
-        }));
-        cursorOverlayThread.IsBackground=true;
-        cursorOverlayThread.Name="VirtualQHDMirror Cursor Overlay";
-        cursorOverlayThread.SetApartmentState(ApartmentState.STA);
-        cursorOverlayThread.Start();
-        cursorOverlayReady.WaitOne(1200);
-    }
-
-    void StopCursorOverlay() {
-        cursorOverlayAvailable=false;
-        try {
-            var local=cursorOverlay;
-            if(local!=null&&!local.IsDisposed&&local.IsHandleCreated) {
-                local.BeginInvoke((MethodInvoker)delegate{ local.Close(); });
-            }
-        }
-        catch {}
-
-        try {
-            if(cursorOverlayThread!=null&&cursorOverlayThread.IsAlive)
-                cursorOverlayThread.Join(800);
-        }
-        catch {}
-
-        cursorOverlayThread=null;
-        cursorOverlay=null;
     }
 
     void DrawFrame() {
@@ -1606,7 +1374,7 @@ public sealed class MirrorV0141 : Form
 public static class LauncherV0141
 {
     [STAThread]
-    public static void Run(string src,string dst,string mode,string inputMode,int cursorHz) {
+    public static void Run(string src,string dst,string mode,string inputMode) {
         MirrorV0141.EnableDpi();
         if(String.IsNullOrWhiteSpace(src))src=MirrorV0141.FindSource();
         if(String.IsNullOrWhiteSpace(dst))dst=MirrorV0141.FindDestination();
@@ -1618,9 +1386,9 @@ public static class LauncherV0141
         Console.WriteLine("Destination: "+dst);
         Console.WriteLine("Render mode: "+mode);
         Console.WriteLine("Input mode: "+inputMode);
-        Console.WriteLine("Cursor polling: "+cursorHz+" Hz");
+        Console.WriteLine("Cursor path: frame-synced");
 
-        Application.Run(new MirrorV0141(src,dst,mode,inputMode,cursorHz));
+        Application.Run(new MirrorV0141(src,dst,mode,inputMode));
     }
 }
 '@
@@ -1643,7 +1411,7 @@ public static class LauncherV0141
         $startupForm = $null
     }
 
-    [LauncherV0141]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode,$CursorHz)
+    [LauncherV0141]::Run($SourceDevice,$DestinationDevice,$Mode,$InputMode)
 }
 catch {
     try {
