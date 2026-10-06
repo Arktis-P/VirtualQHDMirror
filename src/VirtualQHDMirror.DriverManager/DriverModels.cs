@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace VirtualQHDMirror.DriverManager;
 
 public sealed record DriverDeviceInfo(
