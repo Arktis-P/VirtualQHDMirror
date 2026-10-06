@@ -2,18 +2,17 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="VirtualQHDMirror"
-        Width="1040"
-        Height="720"
-        MinWidth="900"
-        MinHeight="620"
+        Width="1180"
+        Height="760"
+        MinWidth="940"
+        MinHeight="680"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="*" MinHeight="240" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -47,7 +46,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -64,27 +62,6 @@
                                Text="Detected physical destination" />
                     <TextBlock x:Name="PhysicalSummaryText"
                                Margin="0,6,0,0"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="2"
-                            Margin="24,0,0,0">
-                    <TextBlock FontWeight="SemiBold"
-                               Text="Virtual display driver" />
-                    <TextBlock x:Name="DriverSummaryText"
-                               Margin="0,6,0,0"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,10,0,0"
-                               FontWeight="SemiBold"
-                               Text="Independent QHD capacity" />
-                    <TextBlock x:Name="CapacitySummaryText"
-                               Margin="0,4,0,0"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,10,0,0"
-                               FontWeight="SemiBold"
-                               Text="Driver configuration plan" />
-                    <TextBlock x:Name="DriverPlanSummaryText"
-                               Margin="0,4,0,0"
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
@@ -139,41 +116,99 @@
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="3"
-                   Margin="0,18,0,8"
-                   FontWeight="SemiBold"
-                   Text="Active display paths" />
+        <Grid Grid.Row="3"
+              Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
 
-        <ListView x:Name="DisplayList"
-                  Grid.Row="4">
-            <ListView.View>
-                <GridView>
-                    <GridViewColumn Width="190"
-                                    Header="Name"
-                                    DisplayMemberBinding="{Binding Name}" />
-                    <GridViewColumn Width="85"
-                                    Header="Kind"
-                                    DisplayMemberBinding="{Binding Kind}" />
-                    <GridViewColumn Width="110"
-                                    Header="Resolution"
-                                    DisplayMemberBinding="{Binding Resolution}" />
-                    <GridViewColumn Width="95"
-                                    Header="Placement"
-                                    DisplayMemberBinding="{Binding Placement}" />
-                    <GridViewColumn Width="130"
-                                    Header="Connector"
-                                    DisplayMemberBinding="{Binding Connector}" />
-                    <GridViewColumn Width="105"
-                                    Header="Source"
-                                    DisplayMemberBinding="{Binding Source}" />
-                    <GridViewColumn Width="230"
-                                    Header="Why"
-                                    DisplayMemberBinding="{Binding Reason}" />
-                </GridView>
-            </ListView.View>
-        </ListView>
+            <Grid Margin="0,0,14,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MinHeight="210" />
+                </Grid.RowDefinitions>
 
-        <Border Grid.Row="5"
+                <TextBlock Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Text="Active display paths" />
+
+                <ListView x:Name="DisplayList"
+                          Grid.Row="1"
+                          MinHeight="210"
+                          HorizontalContentAlignment="Stretch">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Width="150"
+                                            Header="Name"
+                                            DisplayMemberBinding="{Binding Name}" />
+                            <GridViewColumn Width="70"
+                                            Header="Kind"
+                                            DisplayMemberBinding="{Binding Kind}" />
+                            <GridViewColumn Width="95"
+                                            Header="Resolution"
+                                            DisplayMemberBinding="{Binding Resolution}" />
+                            <GridViewColumn Width="80"
+                                            Header="Placement"
+                                            DisplayMemberBinding="{Binding Placement}" />
+                            <GridViewColumn Width="100"
+                                            Header="Connector"
+                                            DisplayMemberBinding="{Binding Connector}" />
+                            <GridViewColumn Width="90"
+                                            Header="Source"
+                                            DisplayMemberBinding="{Binding Source}" />
+                            <GridViewColumn Width="195"
+                                            Header="Why"
+                                            DisplayMemberBinding="{Binding Reason}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+
+            <Border Grid.Column="1"
+                    Padding="14"
+                    BorderBrush="#D0D0D0"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Text="Driver &amp; topology" />
+
+                        <TextBlock Margin="0,14,0,0"
+                                   FontWeight="SemiBold"
+                                   Text="Virtual display driver" />
+                        <TextBlock x:Name="DriverSummaryText"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="Wrap" />
+
+                        <Border Margin="0,14,0,14"
+                                Height="1"
+                                Background="#E0E0E0" />
+
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Independent QHD capacity" />
+                        <TextBlock x:Name="CapacitySummaryText"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="Wrap" />
+
+                        <Border Margin="0,14,0,14"
+                                Height="1"
+                                Background="#E0E0E0" />
+
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Driver configuration plan" />
+                        <TextBlock x:Name="DriverPlanSummaryText"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="4"
                 Margin="0,14,0,0"
                 Padding="12"
                 Background="#F5F5F5"
@@ -181,7 +216,8 @@
             <StackPanel>
                 <TextBlock x:Name="MirrorStateText"
                            FontWeight="SemiBold"
-                           Text="Mirror is not running." />
+                           Text="Mirror is not running."
+                           TextWrapping="Wrap" />
                 <TextBlock x:Name="StatusText"
                            Margin="0,5,0,0"
                            TextWrapping="Wrap" />
