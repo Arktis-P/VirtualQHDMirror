@@ -123,3 +123,22 @@ The discovery stage should eventually be checked against at least:
 8. ambiguous/unknown indirect display path.
 
 The current .NET shell displays Kind, Placement, Resolution, Connector, Source and classification reason so these cases can be inspected without changing the working v0.14.1 mirror core.
+
+
+## Temporary stable-engine bridge
+
+The v0.20 shell now connects discovery to the frozen v0.14.1 mirror engine so the first public-release flow is testable end to end before the renderer/input engine are migrated.
+
+Current behavior:
+
+1. discover active displays,
+2. populate Virtual QHD and Physical FHD selectors,
+3. auto-select a selector only when it has exactly one candidate,
+4. let the user choose explicitly when multiple candidates exist,
+5. `Start Mirror` launches `archive/v0.14.1/VirtualQHDMirror.ps1` with explicit `-SourceDevice` and `-DestinationDevice`,
+6. the v0.14.1 Portal engine performs the actual mirror/input work,
+7. `Stop Mirror` posts the v0.14.1 exit hotkey message to the mirror process so its normal cleanup path runs.
+
+This is a migration bridge, not the final architecture. It intentionally reuses the proven v0.14.1 rendering/input core while v0.20 owns discovery and pairing. Later phases replace the PowerShell engine subsystem-by-subsystem.
+
+The v0.14.1 archive remains frozen; v0.20 only launches it with explicit display device names.

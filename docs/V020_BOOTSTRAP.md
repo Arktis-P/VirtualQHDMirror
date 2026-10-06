@@ -15,7 +15,7 @@ The migration is incremental. The root `run.cmd` keeps the runnable v0.14.1 fall
 
 ## Migration order
 
-1. QueryDisplayConfig-based display discovery.
+1. QueryDisplayConfig-based display discovery + explicit pairing UI + temporary stable-engine launch bridge.
 2. GDI renderer migration as a compatibility baseline.
 3. Portal/native input migration.
 4. Configuration persistence and monitor selection UI.

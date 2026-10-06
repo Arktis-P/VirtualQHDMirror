@@ -1,6 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+set "VQM_REPO_ROOT=%~dp0"
 
 where dotnet >nul 2>&1
 if errorlevel 1 (

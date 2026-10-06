@@ -2,13 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="VirtualQHDMirror"
-        Width="980"
-        Height="620"
-        MinWidth="820"
-        MinHeight="520"
+        Width="1040"
+        Height="720"
+        MinWidth="900"
+        MinHeight="620"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -23,7 +24,7 @@
                            Text="VirtualQHDMirror" />
                 <TextBlock Margin="0,4,0,0"
                            Foreground="DimGray"
-                           Text="v0.20 display preflight" />
+                           Text="v0.20 display setup + stable mirror bridge" />
             </StackPanel>
 
             <Button DockPanel.Dock="Right"
@@ -49,7 +50,7 @@
 
                 <StackPanel>
                     <TextBlock FontWeight="SemiBold"
-                               Text="Virtual source" />
+                               Text="Detected virtual source" />
                     <TextBlock x:Name="VirtualSummaryText"
                                Margin="0,6,0,0"
                                TextWrapping="Wrap" />
@@ -58,7 +59,7 @@
                 <StackPanel Grid.Column="1"
                             Margin="24,0,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Physical destination" />
+                               Text="Detected physical destination" />
                     <TextBlock x:Name="PhysicalSummaryText"
                                Margin="0,6,0,0"
                                TextWrapping="Wrap" />
@@ -66,13 +67,62 @@
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="2"
+        <Border Grid.Row="2"
+                Margin="0,14,0,0"
+                Padding="14"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="180" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Virtual QHD source" />
+                    <ComboBox x:Name="VirtualSourceComboBox"
+                              Height="30"
+                              Margin="0,7,12,0"
+                              DisplayMemberPath="Label"
+                              SelectionChanged="PairSelection_Changed" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Physical FHD destination" />
+                    <ComboBox x:Name="PhysicalDestinationComboBox"
+                              Height="30"
+                              Margin="0,7,12,0"
+                              DisplayMemberPath="Label"
+                              SelectionChanged="PairSelection_Changed" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <Button x:Name="StartMirrorButton"
+                            Height="32"
+                            IsEnabled="False"
+                            Click="StartMirror_Click"
+                            Content="Start Mirror" />
+                    <Button x:Name="StopMirrorButton"
+                            Height="32"
+                            Margin="0,8,0,0"
+                            IsEnabled="False"
+                            Click="StopMirror_Click"
+                            Content="Stop Mirror" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="3"
                    Margin="0,18,0,8"
                    FontWeight="SemiBold"
                    Text="Active display paths" />
 
         <ListView x:Name="DisplayList"
-                  Grid.Row="3">
+                  Grid.Row="4">
             <ListView.View>
                 <GridView>
                     <GridViewColumn Width="190"
@@ -90,23 +140,29 @@
                     <GridViewColumn Width="130"
                                     Header="Connector"
                                     DisplayMemberBinding="{Binding Connector}" />
-                    <GridViewColumn Width="95"
+                    <GridViewColumn Width="105"
                                     Header="Source"
                                     DisplayMemberBinding="{Binding Source}" />
-                    <GridViewColumn Width="220"
+                    <GridViewColumn Width="230"
                                     Header="Why"
                                     DisplayMemberBinding="{Binding Reason}" />
                 </GridView>
             </ListView.View>
         </ListView>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Margin="0,14,0,0"
                 Padding="12"
                 Background="#F5F5F5"
                 CornerRadius="4">
-            <TextBlock x:Name="StatusText"
-                       TextWrapping="Wrap" />
+            <StackPanel>
+                <TextBlock x:Name="MirrorStateText"
+                           FontWeight="SemiBold"
+                           Text="Mirror is not running." />
+                <TextBlock x:Name="StatusText"
+                           Margin="0,5,0,0"
+                           TextWrapping="Wrap" />
+            </StackPanel>
         </Border>
     </Grid>
 </Window>
