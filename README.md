@@ -44,11 +44,16 @@ For normal use, double-click **VirtualQHDMirror.vbs**. It launches the PowerShel
 - scripts/run-captured-input.cmd: earlier captured experiment
 - scripts/run-legacy-input.cmd: v0.13.1-style input path
 
-## Runnable v0.13.1 archive
+## Runnable archives
 
-For immediate daily use, the exact v0.13.1 baseline is preserved at:
+Frozen fallback snapshots are kept under `archive/`.
 
-archive/v0.13.1/run.cmd
+- `archive/v0.14.1/`: Portal-era fallback including GUI startup and the 120 FPS experiment
+- `archive/v0.13.1/`: earlier v0.13.1 baseline
+
+For normal fallback use of v0.14.1, launch:
+
+`archive/v0.14.1/VirtualQHDMirror.vbs`
 
 ## Hotkeys
 
