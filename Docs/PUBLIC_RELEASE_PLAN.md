@@ -8,7 +8,8 @@
 
 - ✅ v0.14.1 runnable fallback 보존 (`archive/v0.14.1/`)
 - ✅ v0.20 .NET 8/WPF solution bootstrap
-- 🔄 다음 구현: `QueryDisplayConfig` 기반 DisplayDiscovery
+- 🔄 다음 구현: read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery**
+- ⏭ 그 다음 P0: virtual display driver 전략 확정 + 설치/복구/제거 안내
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -110,7 +111,7 @@ VirtualQHDMirror/
 ├─ prototype/
 │  └─ v0.12/   # frozen historical baseline
 ├─ .github/
-│  └─ workflows/
+│  └─ workflows/         # release-only automation when explicitly approved
 ├─ LICENSE
 └─ README.md
 ```
@@ -150,9 +151,23 @@ VirtualQHDMirror/
 
 ---
 
-## Phase B — Display Discovery 재작성
+## Phase B — System Preflight + Display Discovery 재작성
 
 현재의 “첫 번째 2560×1440 / 첫 번째 1920×1080” 선택을 제거한다.
+
+이 단계는 기존 미러링 코어를 변경하기 전에 **읽기 전용 사전 점검(preflight)** 계층을 만든다.
+
+Preflight가 먼저 확인할 것:
+
+- Windows / 디스플레이 topology 읽기
+- virtual display adapter/monitor 존재 여부
+- 필요한 QHD source mode 사용 가능 여부
+- 물리 destination 후보
+- source/destination 자동 선택 가능 여부
+- 모호하거나 잘못된 구성에 대한 사용자용 상태 메시지
+- 드라이버가 없거나 비활성일 때 다음 설치 안내로 연결할 수 있는 상태 코드
+
+이 단계에서는 드라이버 설치, 레지스트리 수정, EDID 수정 등 시스템 변경을 수행하지 않는다.
 
 사용할 정보:
 
@@ -321,7 +336,9 @@ Adaptive 정책은 v0.12의 60/30/15 FPS 아이디어를 유지하되 GPU 기반
 
 ## Phase F — Virtual Display Driver
 
-공개 배포의 가장 중요한 외부 의존성이다.
+공개 배포의 가장 중요한 외부 의존성이며, **구현 순서상 Phase B 직후 전략을 확정해야 하는 P0 gate**다.
+
+상세 온보딩 계획은 `Docs/DRIVER_ONBOARDING_PLAN.md`를 따른다.
 
 결정해야 할 사항:
 
@@ -566,33 +583,28 @@ Installer 책임:
 
 ---
 
-## Phase L — CI / GitHub
+## Phase L — GitHub / Release Automation
 
-GitHub Actions:
+기본 원칙은 `Docs/REPOSITORY_OPERATION_RULES.md`를 따른다.
 
-- restore
-- build
-- test
-- static analysis
-- package
-- artifact upload
+개발 중에는 GitHub Actions를 기본 CI로 사용하지 않는다.
 
-Release workflow:
+- restore / build / test / static validation은 로컬 우선
+- 일반 commit/push마다 workflow를 실행하지 않음
+- major checkpoint는 원격 push/ref update 1회 제한
+- remote artifact upload는 일반 개발 체크포인트에서 사용하지 않음
+- GitHub Actions가 필요해지는 시점은 release/signing/package 등 원격 자동화의 이점이 명확할 때로 제한
+- 도입 시에도 `workflow_dispatch`, release/tag 등 좁은 trigger 우선
+
+공개 release 단계에서 필요할 수 있는 자동화:
 
 - version tag
-- signed app
-- signed driver
+- signed app/package
+- approved signed driver package
 - SHA-256 checksum
 - release notes
 
-branch 정책 제안:
-
-- `main`: 안정 브랜치
-- `dev`: 통합 브랜치
-- feature branch → PR → dev
-- release 시 dev → main
-
-프로토타입 단계에서는 과도한 branch protection은 불필요하지만 공개 beta 전에 적용한다.
+branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초기 migration 단계에서는 과도한 branch protection과 CI 소비를 만들지 않는다.
 
 ---
 
@@ -720,14 +732,14 @@ branch 정책 제안:
 현재 기준에서 가장 효율적인 순서:
 
 1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
-2. 🔄 QueryDisplayConfig 기반 DisplayDiscovery 구현
-3. v0.14.1 GDI renderer를 정식 app에 이식
-4. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
-5. 설정 저장 + source/destination 선택 UI
-6. D3D11 / Windows Graphics Capture backend 구현
-7. driver strategy 확정 및 DriverManager 연결
-8. tray / startup / diagnostics export
-9. installer + uninstall/rollback
-10. external alpha
+2. 🔄 **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery**
+3. **virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440 제공 방식 확인
+4. **공개용 드라이버 설치·복구·제거 안내 작성** + DriverManager의 read-only 상태 확인
+5. v0.14.1 GDI renderer를 정식 app에 이식
+6. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
+7. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
+8. D3D11 / Windows Graphics Capture backend + reconnect/recovery
+9. tray / startup / diagnostics + installer/uninstall/rollback
+10. fresh-PC external alpha
 
-핵심 원칙은 **동작 중인 v0.12를 한 번에 버리지 않고, 각 계층을 하나씩 정식 구현으로 대체하는 것**이다.
+핵심 원칙은 **현재 동작하는 v0.14.1 코어를 유지한 채, 일반 사용자가 설치하고 올바른 디스플레이를 선택할 수 있게 만드는 외곽 계층부터 추가하는 것**이다. 공개화 migration이 기능 parity에 도달하기 전까지 기존 PowerShell 실행 경로를 제거하지 않는다.
