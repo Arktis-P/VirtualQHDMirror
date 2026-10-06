@@ -107,7 +107,7 @@ The raw inventory supports arbitrary active resolutions.
 
 The **default mirror candidate policy** is still FHD physical (1920 × 1080) → QHD virtual (2560 × 1440), because that is the product behavior currently proven by v0.14.1.
 
-1920 × 1200, ultrawide, 1366 × 768 and other physical resolutions should be added later as explicit target profiles rather than silently treating every display below QHD as equivalent.
+The inventory itself is resolution-agnostic. "Low-resolution physical monitor" is therefore a broader future concept than the current FHD candidate profile. 1920 × 1200, ultrawide, 1366 × 768 and other physical resolutions should be added as explicit target profiles after their scaling/input behavior is validated, rather than silently treating every display below QHD as equivalent.
 
 ## Validation scenarios
 

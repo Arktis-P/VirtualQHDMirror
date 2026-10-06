@@ -38,9 +38,9 @@ public partial class MainWindow : Window
             VirtualSummaryText.Text = result.VirtualSourceState switch
             {
                 CandidateSelectionState.SingleCandidate =>
-                    $"1 QHD virtual source: {result.RecommendedVirtualSource!.FriendlyName}",
+                    $"1 QHD virtual source: {result.VirtualQhdCandidates[0].FriendlyName}",
                 CandidateSelectionState.MultipleCandidates =>
-                    $"{result.VirtualQhdCandidates.Count} QHD virtual sources found — selection required",
+                    $"{result.VirtualQhdCandidates.Count} QHD virtual sources found — selection/pairing required",
                 _ => $"No QHD virtual source found ({result.VirtualDisplays.Count} virtual display(s) identified)"
             };
 
