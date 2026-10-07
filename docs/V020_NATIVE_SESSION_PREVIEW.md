@@ -151,16 +151,22 @@ This confirms the shadow-copy session runtime isolates live session DLL locks fr
 
 The temporary process-detection/App-only build fallback is no longer needed. `run-v020.cmd` now always performs a normal full solution build before reopening the setup UI.
 
+## Split frame / cursor cadence
 
-## Portal low-latency tuning
+Functional parity testing confirmed pointer shape/position, clicks, wheel, drag and ordinary Portal behavior. The first low-latency pass improved smoothness by running the entire GDI frame at ~120 Hz while Portal was active, but that was intentionally temporary because a 60 Hz physical destination does not need 120 full-frame copies.
 
-Functional parity testing confirmed that pointer shape/position, clicks, wheel, drag and ordinary Portal behavior match the stable path. The remaining issue was visual cursor smoothness and slight perceived latency.
+The native preview now separates the cadences:
 
-The native preview now applies a low-latency Adaptive policy only while Portal input is active:
+- full-screen mirror frame: maximum ~60 Hz (16 ms),
+- normal Adaptive idle policy remains 16 / 33 / 66 ms,
+- Portal cursor/input polling: 10 ms (~100 Hz),
+- cursor-only ticks restore only the previous software-cursor rectangle from the source and redraw the current cursor,
+- the QHD source is no longer full-frame StretchBlt at 100/120 Hz merely to make the pointer smoother,
+- Portal entry still draws one immediate full frame,
+- the inherited 10 ms click/wheel sleep remains removed.
 
-- Portal active + Adaptive: 8 ms target interval (~120 Hz),
-- Portal inactive: retain the existing Adaptive 16 / 33 / 66 ms policy,
-- entering Portal triggers an immediate frame instead of waiting for the next timer tick,
-- the inherited 10 ms fixed sleep on first click/wheel Portal entry has been removed.
+The cursor dirty-rectangle path uses the same destination window/DC as the normal mirror. It does not reintroduce the old click-through cursor-overlay experiment.
 
-This intentionally raises full-frame GDI work only while the user is actively controlling the mirrored source. The stable v0.14.1 engine remains unchanged.
+If cursor-only refresh encounters a runtime error, that optimization is disabled for the session and the normal full-frame path continues as a safe fallback.
+
+Pointer gain is deliberately unchanged. Perceived cursor weight should be reevaluated after this visual-latency optimization before any movement scaling is introduced.
