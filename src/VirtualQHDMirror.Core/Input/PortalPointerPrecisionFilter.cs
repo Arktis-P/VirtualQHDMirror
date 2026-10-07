@@ -106,55 +106,219 @@ internal sealed class PortalPointerPrecisionFilter : IDisposable
         IntPtr wParam,
         IntPtr lParam)
     {
-        if (code < 0 ||
-            _hook == IntPtr.Zero ||
-            unchecked((uint)wParam.ToInt64()) !=
-                WmMouseMove)
+        try
         {
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
+            if (code < 0 ||
+                _hook == IntPtr.Zero ||
+                unchecked((uint)wParam.ToInt64()) !=
+                    WmMouseMove)
+            {
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
 
-        var data =
-            Marshal.PtrToStructure<LowLevelMouseHookData>(
-                lParam);
+            var data =
+                Marshal.PtrToStructure<LowLevelMouseHookData>(
+                    lParam);
 
-        var point =
-            new PixelPoint(
-                data.Point.X,
-                data.Point.Y);
+            var point =
+                new PixelPoint(
+                    data.Point.X,
+                    data.Point.Y);
 
-        if (_expectedSyntheticPoint is
-                PixelPoint expected &&
-            point == expected)
-        {
-            _lastFinalPoint =
-                point;
+            if (_expectedSyntheticPoint is
+                    PixelPoint expected &&
+                point == expected)
+            {
+                _lastFinalPoint =
+                    point;
 
-            _hasBaseline = true;
+                _hasBaseline = true;
+                _expectedSyntheticPoint = null;
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            if ((data.Flags & LlMhfInjected) != 0 ||
+                data.ExtraInfo ==
+                    WindowsPointerInjector.InjectionMarker)
+            {
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            // A genuine hardware move supersedes any synthetic point that
+            // was expected but never observed by the low-level hook.
             _expectedSyntheticPoint = null;
 
+            if (!_geometry.IsSourcePoint(
+                    point))
+            {
+                _hasBaseline = false;
+                ResetResidual();
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            if (!_hasBaseline)
+            {
+                _lastFinalPoint = point;
+                _hasBaseline = true;
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            var deltaX =
+                point.X -
+                _lastFinalPoint.X;
+
+            var deltaY =
+                point.Y -
+                _lastFinalPoint.Y;
+
+            if (deltaX == 0 &&
+                deltaY == 0)
+            {
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            var movement =
+                Math.Sqrt(
+                    ((double)deltaX * deltaX) +
+                    ((double)deltaY * deltaY));
+
+            var strength =
+                GetPrecisionStrength(
+                    movement);
+
+            if (strength <= 0)
+            {
+                _lastFinalPoint = point;
+                ResetResidual();
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            var sourceToDestinationX =
+                Math.Clamp(
+                    _geometry.Source.Width /
+                    (double)_geometry.Destination.Width,
+                    1.0,
+                    MaximumGain);
+
+            var sourceToDestinationY =
+                Math.Clamp(
+                    _geometry.Source.Height /
+                    (double)_geometry.Destination.Height,
+                    1.0,
+                    MaximumGain);
+
+            var gainX =
+                1.0 +
+                ((sourceToDestinationX - 1.0) *
+                 strength);
+
+            var gainY =
+                1.0 +
+                ((sourceToDestinationY - 1.0) *
+                 strength);
+
+            var extraXWithResidual =
+                (deltaX * (gainX - 1.0)) +
+                _residualX;
+
+            var extraYWithResidual =
+                (deltaY * (gainY - 1.0)) +
+                _residualY;
+
+            var extraX =
+                (int)Math.Round(
+                    extraXWithResidual,
+                    MidpointRounding.AwayFromZero);
+
+            var extraY =
+                (int)Math.Round(
+                    extraYWithResidual,
+                    MidpointRounding.AwayFromZero);
+
+            _residualX =
+                extraXWithResidual -
+                extraX;
+
+            _residualY =
+                extraYWithResidual -
+                extraY;
+
+            if (extraX == 0 &&
+                extraY == 0)
+            {
+                _lastFinalPoint = point;
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            var adjustedPoint =
+                ClampToSource(
+                    new PixelPoint(
+                        point.X + extraX,
+                        point.Y + extraY));
+
+            if (adjustedPoint ==
+                point)
+            {
+                _lastFinalPoint = point;
+                ResetResidual();
+
+                return CallNext(
+                    code,
+                    wParam,
+                    lParam);
+            }
+
+            _expectedSyntheticPoint =
+                adjustedPoint;
+
+            _lastFinalPoint =
+                adjustedPoint;
+
+            if (!_pointer.SetPosition(
+                    adjustedPoint))
+            {
+                _expectedSyntheticPoint = null;
+                _lastFinalPoint = point;
+                ResetResidual();
+            }
+
             return CallNext(
                 code,
                 wParam,
                 lParam);
         }
-
-        if ((data.Flags & LlMhfInjected) != 0 ||
-            data.ExtraInfo ==
-                WindowsPointerInjector.InjectionMarker)
+        catch
         {
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        if (!_geometry.IsSourcePoint(
-                point))
-        {
+            // A low-level hook must never destabilize the mirror session.
             _hasBaseline = false;
             _expectedSyntheticPoint = null;
             ResetResidual();
@@ -164,152 +328,6 @@ internal sealed class PortalPointerPrecisionFilter : IDisposable
                 wParam,
                 lParam);
         }
-
-        if (!_hasBaseline)
-        {
-            _lastFinalPoint = point;
-            _hasBaseline = true;
-
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        var deltaX =
-            point.X -
-            _lastFinalPoint.X;
-
-        var deltaY =
-            point.Y -
-            _lastFinalPoint.Y;
-
-        if (deltaX == 0 &&
-            deltaY == 0)
-        {
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        var movement =
-            Math.Sqrt(
-                ((double)deltaX * deltaX) +
-                ((double)deltaY * deltaY));
-
-        var strength =
-            GetPrecisionStrength(
-                movement);
-
-        if (strength <= 0)
-        {
-            _lastFinalPoint = point;
-            ResetResidual();
-
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        var sourceToDestinationX =
-            Math.Clamp(
-                _geometry.Source.Width /
-                (double)_geometry.Destination.Width,
-                1.0,
-                MaximumGain);
-
-        var sourceToDestinationY =
-            Math.Clamp(
-                _geometry.Source.Height /
-                (double)_geometry.Destination.Height,
-                1.0,
-                MaximumGain);
-
-        var gainX =
-            1.0 +
-            ((sourceToDestinationX - 1.0) *
-             strength);
-
-        var gainY =
-            1.0 +
-            ((sourceToDestinationY - 1.0) *
-             strength);
-
-        var extraXWithResidual =
-            (deltaX * (gainX - 1.0)) +
-            _residualX;
-
-        var extraYWithResidual =
-            (deltaY * (gainY - 1.0)) +
-            _residualY;
-
-        var extraX =
-            (int)Math.Round(
-                extraXWithResidual,
-                MidpointRounding.AwayFromZero);
-
-        var extraY =
-            (int)Math.Round(
-                extraYWithResidual,
-                MidpointRounding.AwayFromZero);
-
-        _residualX =
-            extraXWithResidual -
-            extraX;
-
-        _residualY =
-            extraYWithResidual -
-            extraY;
-
-        if (extraX == 0 &&
-            extraY == 0)
-        {
-            _lastFinalPoint = point;
-
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        var adjustedPoint =
-            ClampToSource(
-                new PixelPoint(
-                    point.X + extraX,
-                    point.Y + extraY));
-
-        if (adjustedPoint ==
-            point)
-        {
-            _lastFinalPoint = point;
-            ResetResidual();
-
-            return CallNext(
-                code,
-                wParam,
-                lParam);
-        }
-
-        _expectedSyntheticPoint =
-            adjustedPoint;
-
-        _lastFinalPoint =
-            adjustedPoint;
-
-        if (!_pointer.SetPosition(
-                adjustedPoint))
-        {
-            _expectedSyntheticPoint = null;
-            _lastFinalPoint = point;
-            ResetResidual();
-        }
-
-        return CallNext(
-            code,
-            wParam,
-            lParam);
     }
 
     private static double GetPrecisionStrength(
