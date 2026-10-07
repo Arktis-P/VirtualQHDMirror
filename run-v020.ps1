@@ -21,6 +21,67 @@ try {
 
     [Environment]::SetEnvironmentVariable("VQM_REPO_ROOT", $root, [EnvironmentVariableTarget]::Process)
     [Environment]::SetEnvironmentVariable("VQM_BUILD_CONFIGURATION", "Debug", [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable("DOTNET_CLI_UI_LANGUAGE", "en-US", [EnvironmentVariableTarget]::Process)
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class VqmLauncherWindow
+{
+    private const int SwRestore = 9;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindowAsync(IntPtr window, int command);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr window);
+
+    public static void Activate(IntPtr window)
+    {
+        if (window == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (IsIconic(window))
+        {
+            ShowWindowAsync(window, SwRestore);
+        }
+
+        SetForegroundWindow(window);
+    }
+}
+'@
+
+    $existingProcesses = @(
+        Get-Process -Name "VirtualQHDMirror" -ErrorAction SilentlyContinue
+    )
+
+    $existingWindowProcess = $existingProcesses |
+        Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
+        Select-Object -First 1
+
+    if ($existingWindowProcess) {
+        [VqmLauncherWindow]::Activate(
+            $existingWindowProcess.MainWindowHandle)
+
+        exit 0
+    }
+
+    if ($existingProcesses.Count -gt 0) {
+        throw (
+            "VirtualQHDMirror v0.20 is already running, but its setup window is not available yet." +
+            $nl + $nl +
+            "Wait a moment and run it again, or close the existing VirtualQHDMirror process before rebuilding.")
+    }
+
 
     $startupForm = New-Object System.Windows.Forms.Form
     $startupForm.Text = "VirtualQHDMirror v0.20"

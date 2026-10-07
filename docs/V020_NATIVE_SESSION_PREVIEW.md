@@ -151,27 +151,6 @@ This confirms the shadow-copy session runtime isolates live session DLL locks fr
 
 The temporary process-detection/App-only build fallback is no longer needed. `run-v020.cmd` now always performs a normal full solution build before reopening the setup UI.
 
-## Split frame / cursor cadence
-
-Functional parity testing confirmed pointer shape/position, clicks, wheel, drag and ordinary Portal behavior. The first low-latency pass improved smoothness by running the entire GDI frame at ~120 Hz while Portal was active, but that was intentionally temporary because a 60 Hz physical destination does not need 120 full-frame copies.
-
-The native preview now separates the cadences:
-
-- full-screen mirror frame: maximum ~60 Hz (16 ms),
-- normal Adaptive idle policy remains 16 / 33 / 66 ms,
-- Portal cursor/input polling: 10 ms (~100 Hz),
-- cursor-only ticks restore only the previous software-cursor rectangle from the source and redraw the current cursor,
-- the QHD source is no longer full-frame StretchBlt at 100/120 Hz merely to make the pointer smoother,
-- Portal entry still draws one immediate full frame,
-- the inherited 10 ms click/wheel sleep remains removed.
-
-The cursor dirty-rectangle path uses the same destination window/DC as the normal mirror. It does not reintroduce the old click-through cursor-overlay experiment.
-
-If cursor-only refresh encounters a runtime error, only the dirty-rectangle cursor renderer is disabled. The 100 Hz Portal input/edge polling continues, while cursor presentation safely falls back to the normal full-frame path.
-
-Pointer gain is deliberately unchanged. Perceived cursor weight should be reevaluated after this visual-latency optimization before any movement scaling is introduced.
-
-
 ## GUI development launcher
 
 The v0.20 development entry point now mirrors the stable launch experience:
@@ -183,19 +162,27 @@ The v0.20 development entry point now mirrors the stable launch experience:
 - build output is written to %LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log,
 - build/startup failures are reported with a GUI message box.
 
+## Final v0.20 cursor policy: v0.14.1 parity
 
-## Fine pointer precision compensation
+Direct comparison against the frozen v0.14.1 Portal path showed that the stable implementation already has the preferred interaction model:
 
-After the cursor cadence split, broad pointer movement remained natural but very small adjustments could still feel heavy or quantized. The reason is geometric: a 2560×1440 source is displayed at 1920×1080, so one source pixel occupies only 0.75 destination pixels. Integer cursor presentation can therefore make successive one-pixel source moves appear as "no movement, then a jump."
+- no pointer gain or scale compensation after Portal entry,
+- the real Windows pointer moves natively on the QHD source,
+- one WinForms timer performs Portal polling and full-frame rendering together,
+- Adaptive falls back to 33 ms and 66 ms while idle,
+- any detected input calls MarkInput and immediately returns Adaptive to 16 ms (~60 Hz),
+- cursor composition remains frame-synced with the mirrored desktop.
 
-The native Portal path now applies **micro-movement-only precision compensation**:
+Therefore the temporary v0.20 experiments that used a separate 100 Hz cursor-only timer and micro-movement gain have been removed. The .NET preview now follows the stable pointer/cursor behavior while retaining the .NET architecture, shadow-copy session runtime, reduced per-frame result allocation, improved startup diagnostics, and removed first-click/wheel fixed sleeps.
 
-- Windows still performs the normal physical mouse movement and acceleration first,
-- the Portal controller observes the resulting source-pixel delta at the existing 100 Hz poll,
-- only movement vectors with a total magnitude of 6 source pixels or less per poll receive compensation,
-- the compensation gain is derived from source/destination scale (4/3 for 2560→1920), capped at 1.5×,
-- fractional extra movement is accumulated instead of discarded, preventing repeated rounding loss,
-- movement above the precision threshold is left at exactly 1.0× and clears any residual,
-- the compensation is applied to the real source pointer, so the visible cursor and click target remain aligned.
+This means an overlay/status reading of "Adaptive / 30 fps" while idle does not describe active pointer movement: as soon as the stable or .NET Portal detects motion, the active interval returns to approximately 60 fps.
 
-This is intentionally not a global mouse-speed change and does not alter Windows pointer settings. It is active only while the Portal owns the source pointer.
+
+## GUI launcher existing-instance behavior
+
+The GUI launcher now checks for an already-running VirtualQHDMirror setup process before building:
+
+- if an existing setup window is available, it is restored/activated and no build is attempted,
+- this prevents the running setup process from locking App/Core/DriverManager binaries during a redundant rebuild,
+- if the process exists but has no usable window yet, the launcher reports that state instead of attempting a conflicting build,
+- dotnet CLI output is forced to English for redirected build logs/error messages to avoid mixed-codepage mojibake.

@@ -13,9 +13,6 @@ public enum PortalUpdateState
 
 public sealed class PortalInputController : IDisposable
 {
-    private const int PrecisionCompensationThresholdPixels = 6;
-    private const double MaximumPrecisionGain = 1.5;
-
     private readonly PortalInputGeometry _geometry;
     private readonly IReadOnlyList<PixelRect> _activeMonitorRects;
     private readonly WindowsPointerInjector _pointer;
@@ -24,8 +21,6 @@ public sealed class PortalInputController : IDisposable
     private PixelPoint _lastPortalCursor;
     private bool _lastPortalCursorValid;
     private PixelPoint _lastDestinationLocal;
-    private double _precisionResidualX;
-    private double _precisionResidualY;
     private bool _disposed;
 
     public PortalInputController(
@@ -127,10 +122,6 @@ public sealed class PortalInputController : IDisposable
             ResetState();
             return PortalUpdateState.LostSource;
         }
-
-        sourcePoint =
-            ApplyPrecisionCompensation(
-                sourcePoint);
 
         _blockedEdge =
             _geometry.UpdateBlockedEdge(
@@ -236,137 +227,11 @@ public sealed class PortalInputController : IDisposable
         _disposed = true;
     }
 
-    private PixelPoint ApplyPrecisionCompensation(
-        PixelPoint sourcePoint)
-    {
-        if (!_lastPortalCursorValid)
-        {
-            ResetPrecisionResidual();
-            return sourcePoint;
-        }
-
-        var deltaX =
-            sourcePoint.X -
-            _lastPortalCursor.X;
-
-        var deltaY =
-            sourcePoint.Y -
-            _lastPortalCursor.Y;
-
-        if (deltaX == 0 &&
-            deltaY == 0)
-        {
-            return sourcePoint;
-        }
-
-        var movementMagnitudeSquared =
-            ((long)deltaX * deltaX) +
-            ((long)deltaY * deltaY);
-
-        var precisionThresholdSquared =
-            (long)PrecisionCompensationThresholdPixels *
-            PrecisionCompensationThresholdPixels;
-
-        if (movementMagnitudeSquared >
-            precisionThresholdSquared)
-        {
-            ResetPrecisionResidual();
-            return sourcePoint;
-        }
-
-        var gainX =
-            Math.Clamp(
-                _geometry.Source.Width /
-                (double)_geometry.Destination.Width,
-                1.0,
-                MaximumPrecisionGain);
-
-        var gainY =
-            Math.Clamp(
-                _geometry.Source.Height /
-                (double)_geometry.Destination.Height,
-                1.0,
-                MaximumPrecisionGain);
-
-        if (gainX <= 1.0 &&
-            gainY <= 1.0)
-        {
-            ResetPrecisionResidual();
-            return sourcePoint;
-        }
-
-        var extraXWithResidual =
-            (deltaX * (gainX - 1.0)) +
-            _precisionResidualX;
-
-        var extraYWithResidual =
-            (deltaY * (gainY - 1.0)) +
-            _precisionResidualY;
-
-        var extraX =
-            (int)Math.Round(
-                extraXWithResidual,
-                MidpointRounding.AwayFromZero);
-
-        var extraY =
-            (int)Math.Round(
-                extraYWithResidual,
-                MidpointRounding.AwayFromZero);
-
-        _precisionResidualX =
-            extraXWithResidual -
-            extraX;
-
-        _precisionResidualY =
-            extraYWithResidual -
-            extraY;
-
-        if (extraX == 0 &&
-            extraY == 0)
-        {
-            return sourcePoint;
-        }
-
-        var adjustedPoint =
-            new PixelPoint(
-                Math.Clamp(
-                    sourcePoint.X + extraX,
-                    _geometry.Source.Left,
-                    _geometry.Source.Right - 1),
-                Math.Clamp(
-                    sourcePoint.Y + extraY,
-                    _geometry.Source.Top,
-                    _geometry.Source.Bottom - 1));
-
-        if (adjustedPoint ==
-            sourcePoint)
-        {
-            ResetPrecisionResidual();
-            return sourcePoint;
-        }
-
-        if (!_pointer.MoveAbsolute(
-                adjustedPoint))
-        {
-            ResetPrecisionResidual();
-            return sourcePoint;
-        }
-
-        return adjustedPoint;
-    }
-
-    private void ResetPrecisionResidual()
-    {
-        _precisionResidualX = 0;
-        _precisionResidualY = 0;
-    }
-
     private void ResetState()
     {
         IsActive = false;
         _blockedEdge = PortalEdge.None;
         _lastPortalCursorValid = false;
-        ResetPrecisionResidual();
     }
 
     private void RaiseActivity() =>

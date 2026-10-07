@@ -15,8 +15,8 @@
 - ✅ **public install/upgrade/repair/uninstall contract** 문서화
 - 🟡 **v0.14.1 GDI renderer .NET backend 이식** — CreateDC/GetDC/HALFTONE StretchBlt/render timing 분리 완료, native session 연결 전
 - 🟡 **Portal/native input + cursor Core 모듈 이식** — 좌표 mapping/clip/SendInput/edge exit/cursor composition 완료, native session 연결 전
-- 🟡 **별도 .NET mirror session preview 연결** — setup 재실행/build-output lock 및 입력·커서 기능 parity 검증 완료; full-frame ≤60Hz + cursor-only 100Hz + 미세 이동 scale compensation 적용, 최종 체감 검증 대기
-- ⏭ 다음 gate: 미세 커서 정밀도 최종 체감 확인 + 장시간 resource profile 확인 후 v0.20 checkpoint 종료 여부 판단
+- 🟡 **별도 .NET mirror session preview 연결** — setup 재실행/build-output lock 및 입력·커서 기능 parity 검증 완료; 100Hz cursor-only/gain 실험을 철회하고 v0.14.1의 active 60 / idle 30·15 frame-synced Portal 정책으로 복귀, 최종 체감 검증 대기
+- ⏭ 다음 gate: v0.14.1 parity cursor 최종 체감 확인 + 장시간 resource profile 확인 후 v0.20 checkpoint 종료
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
