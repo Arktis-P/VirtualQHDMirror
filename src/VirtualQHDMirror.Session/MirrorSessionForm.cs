@@ -525,10 +525,6 @@ internal sealed class MirrorSessionForm : Form
             MouseButtons.XButton2;
     }
 
-    [DllImport(
-        "dwmapi.dll")]
-    private static extern int DwmSetWindowAttributePlaceholder();
-
     private static class NativeMethods
     {
         [DllImport(

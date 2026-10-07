@@ -38,8 +38,8 @@ public sealed class GdiMirrorRenderer : IDisposable
             sourceDeviceName,
             sourceLeft: 0,
             sourceTop: 0,
-            sourceWidth,
-            sourceHeight)
+            sourceWidth: sourceWidth,
+            sourceHeight: sourceHeight)
     {
     }
 

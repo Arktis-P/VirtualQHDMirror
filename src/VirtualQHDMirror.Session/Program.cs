@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Windows.Forms;
 using VirtualQHDMirror.Core.Displays;
+using VirtualQHDMirror.Core.Input;
+using VirtualQHDMirror.Core.Rendering;
 
 namespace VirtualQHDMirror.Session;
 
@@ -61,7 +63,7 @@ internal static class Program
                         display.Width > 0 &&
                         display.Height > 0)
                     .Select(display =>
-                        new Core.Input.PixelRect(
+                        new PixelRect(
                             display.X,
                             display.Y,
                             display.Width,
@@ -91,7 +93,7 @@ internal static class Program
     private sealed record SessionArguments(
         string SourceDevice,
         string DestinationDevice,
-        Core.Rendering.MirrorRenderMode RenderMode)
+        MirrorRenderMode RenderMode)
     {
         public static bool TryParse(
             string[] args,
@@ -102,7 +104,7 @@ internal static class Program
             string? source = null;
             string? destination = null;
             var renderMode =
-                Core.Rendering.MirrorRenderMode.Adaptive;
+                MirrorRenderMode.Adaptive;
 
             for (var index = 0;
                  index < args.Length;
@@ -154,24 +156,24 @@ internal static class Program
 
         private static bool TryParseRenderMode(
             string value,
-            out Core.Rendering.MirrorRenderMode mode)
+            out MirrorRenderMode mode)
         {
             mode = value.ToLowerInvariant() switch
             {
                 "adaptive" =>
-                    Core.Rendering.MirrorRenderMode.Adaptive,
+                    MirrorRenderMode.Adaptive,
 
                 "30" =>
-                    Core.Rendering.MirrorRenderMode.Fixed30,
+                    MirrorRenderMode.Fixed30,
 
                 "60" =>
-                    Core.Rendering.MirrorRenderMode.Fixed60,
+                    MirrorRenderMode.Fixed60,
 
                 "120" =>
-                    Core.Rendering.MirrorRenderMode.Experimental120,
+                    MirrorRenderMode.Experimental120,
 
                 _ =>
-                    (Core.Rendering.MirrorRenderMode)(-1)
+                    (MirrorRenderMode)(-1)
             };
 
             return Enum.IsDefined(
