@@ -102,6 +102,8 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
+        RefreshDisplays();
+
         var plan = _currentDriverPlan;
 
         if (plan is null ||
@@ -310,11 +312,22 @@ public partial class MainWindow : Window
         StartMirrorButton.IsEnabled =
             !running &&
             !multipleSessions &&
+            !_driverPlanApplyInProgress &&
             hasPair;
 
-        StopMirrorButton.IsEnabled = running;
-        VirtualSourceComboBox.IsEnabled = !running && !multipleSessions;
-        PhysicalDestinationComboBox.IsEnabled = !running && !multipleSessions;
+        StopMirrorButton.IsEnabled =
+            running &&
+            !_driverPlanApplyInProgress;
+
+        VirtualSourceComboBox.IsEnabled =
+            !running &&
+            !multipleSessions &&
+            !_driverPlanApplyInProgress;
+
+        PhysicalDestinationComboBox.IsEnabled =
+            !running &&
+            !multipleSessions &&
+            !_driverPlanApplyInProgress;
         RefreshButton.IsEnabled =
             !running &&
             !_driverPlanApplyInProgress;

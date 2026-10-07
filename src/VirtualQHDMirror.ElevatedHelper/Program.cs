@@ -229,6 +229,12 @@ internal static class Program
             return false;
         }
 
+        if (monitorCount is int requestedCount &&
+            requestedCount < existingCount)
+        {
+            return false;
+        }
+
         validatedPath = requestedPath;
         return true;
     }
