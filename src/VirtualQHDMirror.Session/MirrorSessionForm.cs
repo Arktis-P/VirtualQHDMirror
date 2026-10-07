@@ -365,8 +365,7 @@ internal sealed class MirrorSessionForm : Form
         object? sender,
         EventArgs e)
     {
-        if (_cleanupStarted ||
-            _cursorUpdateDisabled)
+        if (_cleanupStarted)
         {
             _cursorTimer.Stop();
             return;
@@ -389,6 +388,11 @@ internal sealed class MirrorSessionForm : Form
             return;
         }
 
+        if (_cursorUpdateDisabled)
+        {
+            return;
+        }
+
         try
         {
             _renderer.RenderCursorUpdate(
@@ -398,10 +402,9 @@ internal sealed class MirrorSessionForm : Form
         catch (Exception exception)
         {
             _cursorUpdateDisabled = true;
-            _cursorTimer.Stop();
 
             SessionDiagnostics.Write(
-                $"Cursor-only update disabled after an error: {exception.Message}");
+                $"Cursor-only update disabled after an error; Portal polling remains active: {exception.Message}");
 
             DrawFrame();
         }
@@ -516,11 +519,6 @@ internal sealed class MirrorSessionForm : Form
 
     private void BeginPortalCursorPolling()
     {
-        if (_cursorUpdateDisabled)
-        {
-            return;
-        }
-
         if (!_cursorTimer.Enabled)
         {
             _cursorTimer.Start();

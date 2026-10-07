@@ -167,6 +167,6 @@ The native preview now separates the cadences:
 
 The cursor dirty-rectangle path uses the same destination window/DC as the normal mirror. It does not reintroduce the old click-through cursor-overlay experiment.
 
-If cursor-only refresh encounters a runtime error, that optimization is disabled for the session and the normal full-frame path continues as a safe fallback.
+If cursor-only refresh encounters a runtime error, only the dirty-rectangle cursor renderer is disabled. The 100 Hz Portal input/edge polling continues, while cursor presentation safely falls back to the normal full-frame path.
 
 Pointer gain is deliberately unchanged. Perceived cursor weight should be reevaluated after this visual-latency optimization before any movement scaling is introduced.
