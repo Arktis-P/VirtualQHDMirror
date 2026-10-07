@@ -298,7 +298,7 @@ internal sealed class PortalPointerPrecisionFilter : IDisposable
         _lastFinalPoint =
             adjustedPoint;
 
-        if (!_pointer.MoveAbsolute(
+        if (!_pointer.SetPosition(
                 adjustedPoint))
         {
             _expectedSyntheticPoint = null;

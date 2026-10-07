@@ -76,6 +76,12 @@ public sealed class WindowsPointerInjector
         NativeMethods.ReleaseCursorClip(
             IntPtr.Zero);
 
+    internal bool SetPosition(
+        PixelPoint point) =>
+        NativeMethods.SetCursorPos(
+            point.X,
+            point.Y);
+
     public bool MoveAbsolute(
         PixelPoint point)
     {

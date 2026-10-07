@@ -201,6 +201,7 @@ Implementation:
 - movement at 12 px or above is unchanged,
 - fractional compensation is retained as residual instead of being discarded by integer rounding,
 - all VirtualQHDMirror `SendInput` events carry a private `dwExtraInfo` marker and are ignored by the precision hook,
+- the small corrective position adjustment uses direct `SetCursorPos` rather than another virtual-desktop `SendInput` normalization pass; the hook tracks the exact expected synthetic point so that adjustment is not amplified again,
 - the hook also ignores ordinary injected low-level mouse events to prevent feedback loops,
 - Portal exit immediately removes the hook and clears residual state.
 
