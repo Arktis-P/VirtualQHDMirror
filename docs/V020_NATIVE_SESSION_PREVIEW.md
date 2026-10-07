@@ -101,3 +101,15 @@ This prevents a fast-crashing child process from appearing as a successful Start
 
 
 WinForms UI-thread exceptions are configured to propagate to the session's outer startup handler, so renderer/window initialization failures are logged instead of being silently swallowed by the child process.
+
+
+## Engine selector synchronization
+
+When the setup UI is reopened while a mirror session is already running, the engine selector is synchronized to the **actual attached session** before it is locked:
+
+- existing v0.14.1 session → `Stable v0.14.1 Portal`,
+- existing native session → `.NET GDI + Portal (preview)`,
+- no running session → preserve the user's current/default selection,
+- ambiguous simultaneous sessions → do not claim either engine as authoritative.
+
+This prevents the disabled selector from showing the default Stable value while the UI is actually attached to a native preview session.

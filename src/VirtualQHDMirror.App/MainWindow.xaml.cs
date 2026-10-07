@@ -16,6 +16,7 @@ public partial class MainWindow : Window
 
     private DriverConfigurationPlan? _currentDriverPlan;
     private bool _driverPlanApplyInProgress;
+    private bool _synchronizingEngineSelection;
 
     public MainWindow()
     {
@@ -60,6 +61,11 @@ public partial class MainWindow : Window
         object sender,
         SelectionChangedEventArgs e)
     {
+        if (_synchronizingEngineSelection)
+        {
+            return;
+        }
+
         UpdateMirrorControls();
     }
 
@@ -389,6 +395,10 @@ public partial class MainWindow : Window
             legacyRunning ||
             nativeRunning;
 
+        SynchronizeEngineSelection(
+            legacyRunning,
+            nativeRunning);
+
         var hasPair =
             VirtualSourceComboBox.SelectedItem is DisplayChoice &&
             PhysicalDestinationComboBox.SelectedItem is DisplayChoice;
@@ -525,6 +535,53 @@ public partial class MainWindow : Window
 
         MirrorStateText.Text =
             "Select one virtual QHD source and one physical FHD destination.";
+    }
+
+    private void SynchronizeEngineSelection(
+        bool legacyRunning,
+        bool nativeRunning)
+    {
+        if (legacyRunning == nativeRunning)
+        {
+            // Both false: preserve the user's selected engine.
+            // Both true: ambiguous state; do not pretend one engine owns it.
+            return;
+        }
+
+        var expectedKind =
+            nativeRunning
+                ? MirrorEngineKind.NativeDotNetPreview
+                : MirrorEngineKind.StableV0141;
+
+        if (MirrorEngineComboBox.SelectedItem is MirrorEngineChoice selected &&
+            selected.Kind == expectedKind)
+        {
+            return;
+        }
+
+        var expectedChoice =
+            MirrorEngineComboBox.Items
+                .OfType<MirrorEngineChoice>()
+                .FirstOrDefault(
+                    choice =>
+                        choice.Kind == expectedKind);
+
+        if (expectedChoice is null)
+        {
+            return;
+        }
+
+        _synchronizingEngineSelection = true;
+
+        try
+        {
+            MirrorEngineComboBox.SelectedItem =
+                expectedChoice;
+        }
+        finally
+        {
+            _synchronizingEngineSelection = false;
+        }
     }
 
     private void DetectMirrorSessions()
