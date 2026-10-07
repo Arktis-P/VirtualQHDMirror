@@ -23,7 +23,9 @@ The user should not need to know a `DISPLAYn` number.
 
 ## Driver strategy gate
 
-Before bundling or automating a driver installation, the exact driver strategy must be fixed.
+**Status: strategy fixed.** The public target is a VQM-owned IDD derived directly from Microsoft's official IddSample. The current ge9-compatible driver remains development-only compatibility infrastructure.
+
+Before bundling the VQM driver, the production/signing gates below must still be completed.
 
 For any candidate IDD package verify:
 
@@ -201,3 +203,12 @@ The helper is intentionally narrow:
 The main UI disables Apply while a legacy mirror session is active. UAC is requested only for the helper process, not for routine VQM operation.
 
 Current development limitation: after the helper exits successfully, v0.20 waits briefly and re-runs display discovery. A later recovery phase should replace the fixed delay with an explicit display-topology change watcher and bounded convergence loop.
+
+
+## Public installation contract
+
+The public install/upgrade/repair/uninstall behavior is defined in:
+
+`docs/PUBLIC_DRIVER_INSTALL_CONTRACT.md`
+
+The current elevated helper is a compatibility-development bridge only. It is not automatically promoted into the final signed driver installer.

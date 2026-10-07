@@ -46,10 +46,12 @@ VirtualQHDMirror/
 │  ├─ v0.13.1/    # earlier runnable fallback
 │  └─ v0.14.1/    # current stable runnable fallback
 ├─ docs/           # active design, roadmap, workflow and migration notes
+├─ driver/         # VQM-owned production IDD design/source area
 ├─ src/
 │  ├─ VirtualQHDMirror.App/
 │  ├─ VirtualQHDMirror.Core/
-│  └─ VirtualQHDMirror.DriverManager/
+│  ├─ VirtualQHDMirror.DriverManager/
+│  └─ VirtualQHDMirror.ElevatedHelper/
 ├─ AGENTS.md
 ├─ Directory.Build.props
 ├─ README.md
@@ -84,3 +86,12 @@ archive/v0.14.1/scripts/
 ```
 
 so the active repository root does not duplicate frozen fallback files.
+
+
+## Public virtual display driver
+
+The public release will not bundle the currently installed ge9 compatibility binary.
+
+The production target is a VQM-owned IddCx driver derived from Microsoft's official IddSample source, with unique VQM identity, stable 1–4 monitor lifecycle and Microsoft production signing.
+
+See `docs/DRIVER_RELEASE_STRATEGY.md`.

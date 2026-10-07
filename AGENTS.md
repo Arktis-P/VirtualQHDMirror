@@ -10,6 +10,7 @@ Before making changes, read:
 - `docs/REPOSITORY_OPERATION_RULES.md`
 - `docs/PUBLIC_RELEASE_PLAN.md` when work relates to the public-release roadmap
 - `docs/DRIVER_ONBOARDING_PLAN.md` when work relates to virtual display setup, packaging, installation, or recovery
+- `docs/DRIVER_RELEASE_STRATEGY.md` and `driver/VirtualDisplay/PRODUCTION_REQUIREMENTS.md` before modifying public driver source or packaging
 
 ## Commit messages
 
@@ -64,3 +65,11 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 Archived version directories are frozen snapshots. Do not rewrite their internal layout merely to match current repository conventions.
 
 Keep the stable `run.cmd` fallback working while the .NET public-release path is built alongside it. Do not remove the v0.14.1 archive as the normal fallback until the replacement reaches functional parity and passes regression validation.
+
+
+## Public driver policy
+
+- The ge9/IddSampleDriver family is development compatibility infrastructure only; do not vendor its binary/certificate into the public package.
+- The production driver source target is the Microsoft official IddSample lineage under MS-PL, productized under a VQM-owned identity.
+- Do not import driver source without recording the exact upstream commit and preserving required notices.
+- Do not introduce public test-signing, Secure Boot disabling, manual root-certificate trust, or Device Manager setup as the normal user path.

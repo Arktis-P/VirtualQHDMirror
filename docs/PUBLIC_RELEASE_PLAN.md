@@ -11,7 +11,9 @@
 - ✅ read-only **System Preflight + `QueryDisplayConfig` 기반 DisplayDiscovery** — 실제 IDD/물리 모니터 식별 및 v0.14.1 mirror handoff 검증 완료
 - 🟡 **DriverManager + elevated compatibility helper** — 설치/활성/config/QHD mode, 전체 1:1 coverage 계산, 안전한 config 변경/backup/정확한 IDD restart 경로 구현; 실제 다중 모니터 privileged apply 검증 대기
 - ✅ v0.14.1 compatibility session 재탐지/Stop 제어 — v0.20 창을 닫아도 mirror 유지, 재실행 시 단일 기존 session 재부착
-- ⏭ 다음 P0: public driver signing/distribution 전략 확정 + 설치/복구/제거 경로
+- ✅ **public driver strategy fixed** — Microsoft official IddSample 기반 VQM-owned IDD, ge9는 development compatibility only
+- ✅ **public install/upgrade/repair/uninstall contract** 문서화
+- ⏭ 다음 구현: v0.14.1 GDI renderer를 .NET app 내부 backend로 이식
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -745,10 +747,10 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 
 1. ✅ v0.14.1 runnable fallback 보존 + v0.20 .NET solution 생성
 2. ✅ **read-only System Preflight + QueryDisplayConfig 기반 DisplayDiscovery** — 현재 개발 PC 실동작 검증 완료
-3. 🟡 **DriverManager + elevated compatibility helper** — 다중 monitor capacity, safe config backup/write, exact IDD restart + IddSampleDriver 개발 호환 baseline
-4. **public virtual display driver 전략 확정** — 라이선스/재배포/서명/설치/제거/2560×1440·다중 monitor 제공 방식
-5. **공개용 드라이버 설치·복구·제거 안내 작성**
-6. v0.14.1 GDI renderer를 정식 app에 이식
+3. 🟡 **DriverManager + elevated compatibility helper** — 개발용 ge9 compatibility lifecycle 지원; 실제 다중 monitor privileged apply 검증 대기
+4. ✅ **public virtual display driver 전략 확정** — Microsoft official IddSample → VQM-owned production IDD, MS-PL source lineage, HLK/Hardware Dev Center production signing target
+5. ✅ **공개용 driver install/upgrade/repair/uninstall 계약 작성**
+6. 🔄 **v0.14.1 GDI renderer를 정식 app 내부 backend로 이식**
 7. v0.14.1 Portal/native input forwarding을 모듈화해서 이식
 8. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
 9. D3D11 / Windows Graphics Capture backend + reconnect/recovery

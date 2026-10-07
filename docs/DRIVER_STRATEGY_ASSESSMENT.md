@@ -85,3 +85,23 @@ Implication:
 7. restore the previous config/restart again if verification fails.
 
 For the Windows-side restart primitive, prefer Microsoft's built-in PnPUtil `/restart-device` command with the exact detected device instance ID. Do not disable/enable arbitrary Display-class devices and do not restart by broad class match.
+
+
+## Final public-release direction
+
+The P0 strategy decision is now fixed:
+
+- **Development compatibility:** existing ge9/IddSampleDriver family.
+- **Public production driver:** VQM-owned IDD derived directly from Microsoft's official IddSample source.
+- **Source license foundation:** Microsoft Public License for imported Microsoft sample portions.
+- **Public signing target:** Microsoft production signing through the Hardware Dev Center / Windows Hardware Compatibility Program path.
+- **Attestation:** controlled testing option only, not the general-public target.
+- **Public configuration:** VQM-owned configuration/control; do not carry forward `C:\IddSampleDriver\option.txt`.
+- **Public device identity:** `ROOT\VirtualQHDMirrorDisplay`.
+- **Public logical monitor target:** 1–4 independent monitors, initially 2560×1440 @ 60 Hz.
+
+Detailed requirements:
+
+- `docs/DRIVER_RELEASE_STRATEGY.md`
+- `docs/PUBLIC_DRIVER_INSTALL_CONTRACT.md`
+- `driver/VirtualDisplay/PRODUCTION_REQUIREMENTS.md`
