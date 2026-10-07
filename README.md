@@ -64,14 +64,15 @@ Archived snapshots keep their original internal layout for reproducibility. Acti
 
 ## Current v0.20 focus
 
-The first public-release stage is read-only display preflight:
+The v0.20 public-release migration currently includes display preflight, driver lifecycle planning, and a native .NET GDI renderer backend:
 
 - enumerate active Windows display paths,
 - classify Physical / Virtual / Unknown,
 - retain Internal / External as placement metadata rather than a hard eligibility rule,
 - identify FHD physical candidates and QHD virtual candidates,
 - avoid arbitrary pairing when multiple candidates exist,
-- prepare for later driver setup, persistent pairing and multi-monitor sessions.
+- prepare for later driver setup, persistent pairing and multi-monitor sessions,
+- host the v0.14.1-compatible GDI frame renderer under `VirtualQHDMirror.Core.Rendering` while the stable Portal engine remains the runtime default.
 
 See `docs/PUBLIC_RELEASE_PLAN.md` and `docs/V020_DISPLAY_DISCOVERY.md`.
 
