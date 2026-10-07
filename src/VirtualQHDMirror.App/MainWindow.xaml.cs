@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private readonly DriverConfigurationPlanner _driverConfigurationPlanner = new();
     private readonly DriverPlanElevatedRunner _driverPlanRunner = new();
     private readonly LegacyMirrorProcessController _mirrorController = new();
+    private readonly NativeMirrorSessionProcessController _nativeMirrorController = new();
 
     private DriverConfigurationPlan? _currentDriverPlan;
     private bool _driverPlanApplyInProgress;
@@ -20,23 +21,46 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        MirrorEngineComboBox.ItemsSource =
+            new[]
+            {
+                new MirrorEngineChoice(
+                    MirrorEngineKind.StableV0141,
+                    "Stable v0.14.1 Portal"),
+                new MirrorEngineChoice(
+                    MirrorEngineKind.NativeDotNetPreview,
+                    ".NET GDI + Portal (preview)")
+            };
+
+        MirrorEngineComboBox.SelectedIndex = 0;
+
         _mirrorController.StateChanged += MirrorController_StateChanged;
+        _nativeMirrorController.StateChanged += MirrorController_StateChanged;
         Loaded += (_, _) =>
         {
-            _mirrorController.DetectExistingSession();
+            DetectMirrorSessions();
             RefreshDisplays();
         };
         Closed += (_, _) =>
         {
             _mirrorController.StateChanged -= MirrorController_StateChanged;
+            _nativeMirrorController.StateChanged -= MirrorController_StateChanged;
             _mirrorController.Dispose();
+            _nativeMirrorController.Dispose();
         };
     }
 
     private void RefreshDisplays_Click(object sender, RoutedEventArgs e)
     {
-        _mirrorController.DetectExistingSession();
+        DetectMirrorSessions();
         RefreshDisplays();
+    }
+
+    private void MirrorEngine_Changed(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        UpdateMirrorControls();
     }
 
     private void PairSelection_Changed(object sender, SelectionChangedEventArgs e)
@@ -60,12 +84,39 @@ public partial class MainWindow : Window
 
         try
         {
-            _mirrorController.Start(
-                source.Endpoint.SourceName,
-                destination.Endpoint.SourceName);
+            DetectMirrorSessions();
+
+            if (HasAnyMirrorSession())
+            {
+                MessageBox.Show(
+                    this,
+                    "A mirror session is already running or multiple sessions were detected. Stop the existing session before starting another engine.",
+                    "VirtualQHDMirror",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var engine =
+                (MirrorEngineComboBox.SelectedItem as MirrorEngineChoice)?.Kind ??
+                MirrorEngineKind.StableV0141;
+
+            if (engine == MirrorEngineKind.NativeDotNetPreview)
+            {
+                _nativeMirrorController.Start(
+                    source.Endpoint.SourceName,
+                    destination.Endpoint.SourceName);
+            }
+            else
+            {
+                _mirrorController.Start(
+                    source.Endpoint.SourceName,
+                    destination.Endpoint.SourceName);
+            }
 
             MirrorStateText.Text =
-                $"Starting mirror: {source.Endpoint.FriendlyName} → {destination.Endpoint.FriendlyName}";
+                $"Starting {GetEngineLabel(engine)}: {source.Endpoint.FriendlyName} → {destination.Endpoint.FriendlyName}";
+
             UpdateMirrorControls();
         }
         catch (Exception exception)
@@ -84,7 +135,13 @@ public partial class MainWindow : Window
 
     private void StopMirror_Click(object sender, RoutedEventArgs e)
     {
-        if (_mirrorController.RequestStop())
+        var stopped =
+            _nativeMirrorController.IsRunning
+                ? _nativeMirrorController.RequestStop()
+                : _mirrorController.IsRunning &&
+                  _mirrorController.RequestStop();
+
+        if (stopped)
         {
             MirrorStateText.Text = "Stopping mirror...";
             return;
@@ -92,7 +149,7 @@ public partial class MainWindow : Window
 
         MessageBox.Show(
             this,
-            "The mirror window is not ready to receive a clean stop request yet. Wait a moment and try again, or use Ctrl+Alt+F12 while the v0.14.1 mirror is running.",
+            "The active mirror session could not receive a clean stop request. You can also use Ctrl+Alt+F12 while the mirror session is running.",
             "VirtualQHDMirror",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
@@ -114,7 +171,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_mirrorController.IsRunning)
+        if (_mirrorController.IsRunning ||
+            _nativeMirrorController.IsRunning)
         {
             MessageBox.Show(
                 this,
@@ -171,7 +229,7 @@ public partial class MainWindow : Window
 
         await Task.Delay(1500);
 
-        _mirrorController.DetectExistingSession();
+        DetectMirrorSessions();
         RefreshDisplays();
 
         MessageBox.Show(
@@ -302,32 +360,69 @@ public partial class MainWindow : Window
 
     private void UpdateMirrorControls()
     {
-        var sessionState = _mirrorController.SessionState;
-        var running = sessionState == LegacyMirrorSessionState.Attached;
-        var multipleSessions = sessionState == LegacyMirrorSessionState.Multiple;
+        var legacyState =
+            _mirrorController.SessionState;
+
+        var nativeState =
+            _nativeMirrorController.SessionState;
+
+        var legacyRunning =
+            legacyState ==
+            LegacyMirrorSessionState.Attached;
+
+        var nativeRunning =
+            nativeState ==
+            NativeMirrorSessionState.Attached;
+
+        var bothEnginesRunning =
+            legacyRunning &&
+            nativeRunning;
+
+        var ambiguousSessions =
+            bothEnginesRunning ||
+            legacyState ==
+                LegacyMirrorSessionState.Multiple ||
+            nativeState ==
+                NativeMirrorSessionState.Multiple;
+
+        var running =
+            legacyRunning ||
+            nativeRunning;
+
         var hasPair =
             VirtualSourceComboBox.SelectedItem is DisplayChoice &&
             PhysicalDestinationComboBox.SelectedItem is DisplayChoice;
 
+        var hasEngine =
+            MirrorEngineComboBox.SelectedItem is MirrorEngineChoice;
+
         StartMirrorButton.IsEnabled =
             !running &&
-            !multipleSessions &&
+            !ambiguousSessions &&
             !_driverPlanApplyInProgress &&
-            hasPair;
+            hasPair &&
+            hasEngine;
 
         StopMirrorButton.IsEnabled =
             running &&
+            !ambiguousSessions &&
             !_driverPlanApplyInProgress;
 
         VirtualSourceComboBox.IsEnabled =
             !running &&
-            !multipleSessions &&
+            !ambiguousSessions &&
             !_driverPlanApplyInProgress;
 
         PhysicalDestinationComboBox.IsEnabled =
             !running &&
-            !multipleSessions &&
+            !ambiguousSessions &&
             !_driverPlanApplyInProgress;
+
+        MirrorEngineComboBox.IsEnabled =
+            !running &&
+            !ambiguousSessions &&
+            !_driverPlanApplyInProgress;
+
         RefreshButton.IsEnabled =
             !running &&
             !_driverPlanApplyInProgress;
@@ -338,11 +433,12 @@ public partial class MainWindow : Window
                 CanProceed: true,
                 RequiresElevation: true
             } plan &&
-            plan.State != DriverConfigurationPlanState.NoChangeRequired;
+            plan.State !=
+                DriverConfigurationPlanState.NoChangeRequired;
 
         ApplyDriverPlanButton.IsEnabled =
             !running &&
-            !multipleSessions &&
+            !ambiguousSessions &&
             !_driverPlanApplyInProgress &&
             driverPlanCanApply;
 
@@ -353,8 +449,10 @@ public partial class MainWindow : Window
                 {
                     DriverConfigurationPlanState.RestartRecommended =>
                         "Restart virtual display",
+
                     DriverConfigurationPlanState.ReadyToIncrease =>
                         "Apply & restart driver",
+
                     _ =>
                         "Apply driver plan"
                 };
@@ -366,7 +464,29 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (running)
+        if (bothEnginesRunning)
+        {
+            MirrorStateText.Text =
+                "Both the stable v0.14.1 engine and the .NET preview engine are running. VQM will not choose one automatically; stop one with Ctrl+Alt+F12 before continuing.";
+            return;
+        }
+
+        if (nativeRunning)
+        {
+            var processText =
+                _nativeMirrorController.ProcessId is int processId
+                    ? $"PID {processId}"
+                    : "process attached";
+
+            MirrorStateText.Text =
+                _nativeMirrorController.AttachedFromDiscovery
+                    ? $"Attached to an existing .NET GDI + Portal preview session ({processText}). Closing this v0.20 window will leave the mirror running; reopening v0.20 can attach again."
+                    : $".NET GDI + Portal preview is running ({processText}). Closing this v0.20 window will leave the mirror running.";
+
+            return;
+        }
+
+        if (legacyRunning)
         {
             var processText =
                 _mirrorController.ProcessId is int processId
@@ -377,23 +497,58 @@ public partial class MainWindow : Window
                 _mirrorController.AttachedFromDiscovery
                     ? $"Attached to an existing v0.14.1 mirror session ({processText}). Closing this v0.20 window will leave the mirror running; reopening v0.20 can attach again."
                     : $"Mirror is running through the v0.14.1 stable engine ({processText}). Closing this v0.20 window will leave the mirror running.";
+
+            return;
         }
-        else if (multipleSessions)
+
+        if (ambiguousSessions)
         {
             MirrorStateText.Text =
-                $"{_mirrorController.DetectedSessionCount} v0.14.1 mirror sessions were detected. VQM will not guess which one to control; Start/Stop are disabled for this compatibility bridge.";
+                $"Ambiguous mirror sessions detected (stable: {_mirrorController.DetectedSessionCount}, .NET: {_nativeMirrorController.DetectedSessionCount}). Start/Stop are disabled until only one session remains.";
+            return;
         }
-        else if (hasPair)
+
+        if (hasPair)
         {
+            var selectedEngine =
+                (MirrorEngineComboBox.SelectedItem as MirrorEngineChoice)?.Kind ??
+                MirrorEngineKind.StableV0141;
+
             MirrorStateText.Text =
-                "Ready. Start Mirror will launch the selected pair using the stable v0.14.1 Portal engine.";
+                selectedEngine ==
+                MirrorEngineKind.NativeDotNetPreview
+                    ? "Ready. Start Mirror will launch the .NET GDI + Portal preview engine. Ctrl+Alt+F12 exits; Ctrl+Alt+F9 cycles render mode."
+                    : "Ready. Start Mirror will launch the stable v0.14.1 Portal engine.";
+
+            return;
         }
-        else
-        {
-            MirrorStateText.Text =
-                "Select one virtual QHD source and one physical FHD destination.";
-        }
+
+        MirrorStateText.Text =
+            "Select one virtual QHD source and one physical FHD destination.";
     }
+
+    private void DetectMirrorSessions()
+    {
+        _mirrorController.DetectExistingSession();
+        _nativeMirrorController.DetectExistingSession();
+    }
+
+    private bool HasAnyMirrorSession() =>
+        _mirrorController.SessionState !=
+            LegacyMirrorSessionState.None ||
+        _nativeMirrorController.SessionState !=
+            NativeMirrorSessionState.None;
+
+    private static string GetEngineLabel(
+        MirrorEngineKind engine) =>
+        engine switch
+        {
+            MirrorEngineKind.NativeDotNetPreview =>
+                ".NET GDI + Portal preview",
+
+            _ =>
+                "stable v0.14.1 Portal engine"
+        };
 
     private void MirrorController_StateChanged(object? sender, EventArgs e)
     {
@@ -405,6 +560,16 @@ public partial class MainWindow : Window
 
         Dispatcher.BeginInvoke(new Action(UpdateMirrorControls));
     }
+
+    private enum MirrorEngineKind
+    {
+        StableV0141,
+        NativeDotNetPreview
+    }
+
+    private sealed record MirrorEngineChoice(
+        MirrorEngineKind Kind,
+        string Label);
 
     private sealed record DisplayChoice(
         DisplayEndpoint Endpoint,

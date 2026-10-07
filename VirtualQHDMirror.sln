@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.DriverMana
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.ElevatedHelper", "src\VirtualQHDMirror.ElevatedHelper\VirtualQHDMirror.ElevatedHelper.csproj", "{01CDB1C7-1D32-4BCD-BC00-9B482849931A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualQHDMirror.Session", "src\VirtualQHDMirror.Session\VirtualQHDMirror.Session.csproj", "{B49D4E99-A616-4CB6-A46F-F5E8B22F7C73}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,5 +34,9 @@ Global
 		{01CDB1C7-1D32-4BCD-BC00-9B482849931A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{01CDB1C7-1D32-4BCD-BC00-9B482849931A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{01CDB1C7-1D32-4BCD-BC00-9B482849931A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B49D4E99-A616-4CB6-A46F-F5E8B22F7C73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B49D4E99-A616-4CB6-A46F-F5E8B22F7C73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B49D4E99-A616-4CB6-A46F-F5E8B22F7C73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B49D4E99-A616-4CB6-A46F-F5E8B22F7C73}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
