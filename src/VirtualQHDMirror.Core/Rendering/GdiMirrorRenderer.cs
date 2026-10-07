@@ -197,6 +197,8 @@ public sealed class GdiMirrorRenderer : IDisposable
             return;
         }
 
+        EnsureDestinationThread();
+
         NativeMethods.ReleaseDC(
             _destinationWindow,
             _destinationDc);
@@ -245,9 +247,11 @@ public sealed class GdiMirrorRenderer : IDisposable
 
     private void EnsureNotDisposed()
     {
-        ObjectDisposedException.ThrowIf(
-            _disposed,
-            this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(
+                nameof(GdiMirrorRenderer));
+        }
     }
 
     private static class NativeMethods

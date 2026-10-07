@@ -48,7 +48,7 @@ Those concerns are kept separate so the renderer can later be replaced by a GPU 
 
 The destination window DC is attached on a specific managed thread.
 
-Render calls must stay on that same thread.
+Render and destination-detach/dispose calls must stay on that same thread while a destination DC is attached.
 
 This matches the intended future UI/session-window design and avoids treating the HWND DC as an arbitrary worker-thread rendering target.
 
