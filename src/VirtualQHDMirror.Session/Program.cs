@@ -28,6 +28,9 @@ internal static class Program
                 return 10;
             }
 
+            Application.SetUnhandledExceptionMode(
+                UnhandledExceptionMode.ThrowException);
+
             Application.SetHighDpiMode(
                 HighDpiMode.PerMonitorV2);
 

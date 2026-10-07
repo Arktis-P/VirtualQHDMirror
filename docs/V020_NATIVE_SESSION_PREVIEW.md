@@ -98,3 +98,6 @@ When Start Mirror launches the .NET preview:
 `%LOCALAPPDATA%\VirtualQHDMirror\logs\native-session.log`
 
 This prevents a fast-crashing child process from appearing as a successful Start Mirror operation.
+
+
+WinForms UI-thread exceptions are configured to propagate to the session's outer startup handler, so renderer/window initialization failures are logged instead of being silently swallowed by the child process.
