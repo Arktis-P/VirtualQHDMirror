@@ -159,6 +159,7 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
+        DetectMirrorSessions();
         RefreshDisplays();
 
         var plan = _currentDriverPlan;
@@ -171,8 +172,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_mirrorController.IsRunning ||
-            _nativeMirrorController.IsRunning)
+        if (HasAnyMirrorSession())
         {
             MessageBox.Show(
                 this,

@@ -15,7 +15,8 @@
 - ✅ **public install/upgrade/repair/uninstall contract** 문서화
 - 🟡 **v0.14.1 GDI renderer .NET backend 이식** — CreateDC/GetDC/HALFTONE StretchBlt/render timing 분리 완료, native session 연결 전
 - 🟡 **Portal/native input + cursor Core 모듈 이식** — 좌표 mapping/clip/SendInput/edge exit/cursor composition 완료, native session 연결 전
-- ⏭ 다음 구현: 별도 .NET mirror session process에 GDI + Portal + cursor 연결
+- 🟡 **별도 .NET mirror session preview 연결** — GDI + Portal + cursor + session 재탐지/Stop 구현, 실제 회귀 테스트 대기
+- ⏭ 다음 gate: .NET preview 실제 입력/커서/재부착 검증 후 stable engine 기본값 전환 여부 판단
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -753,7 +754,7 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 4. ✅ **public virtual display driver 전략 확정** — Microsoft official IddSample → VQM-owned production IDD, MS-PL source lineage, HLK/Hardware Dev Center production signing target
 5. ✅ **공개용 driver install/upgrade/repair/uninstall 계약 작성**
 6. 🟡 **v0.14.1 GDI renderer를 정식 app 내부 backend로 이식** — Core.Rendering 구현 완료, native session 연결 대기
-7. 🟡 **v0.14.1 Portal/native input + cursor 모듈 이식** — Core.Input/Core.Rendering 구현 완료, native session 연결 대기
+7. 🟡 **v0.14.1 Portal/native input + cursor + native session 이식** — 별도 .NET session preview 연결 완료, 실제 회귀 테스트 대기
 8. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
 9. D3D11 / Windows Graphics Capture backend + reconnect/recovery
 10. tray / startup / diagnostics + installer/uninstall/rollback

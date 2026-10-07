@@ -125,8 +125,8 @@ internal sealed class MirrorSessionForm : Form
         Shown +=
             MirrorSessionForm_Shown;
 
-        FormClosed +=
-            MirrorSessionForm_FormClosed;
+        FormClosing +=
+            MirrorSessionForm_FormClosing;
     }
 
     public bool RenderFailureOccurred { get; private set; }
@@ -319,9 +319,9 @@ internal sealed class MirrorSessionForm : Form
         _timer.Start();
     }
 
-    private void MirrorSessionForm_FormClosed(
+    private void MirrorSessionForm_FormClosing(
         object? sender,
-        FormClosedEventArgs e)
+        FormClosingEventArgs e)
     {
         Cleanup();
     }

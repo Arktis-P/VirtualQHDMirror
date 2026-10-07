@@ -51,7 +51,8 @@ VirtualQHDMirror/
 │  ├─ VirtualQHDMirror.App/
 │  ├─ VirtualQHDMirror.Core/
 │  ├─ VirtualQHDMirror.DriverManager/
-│  └─ VirtualQHDMirror.ElevatedHelper/
+│  ├─ VirtualQHDMirror.ElevatedHelper/
+│  └─ VirtualQHDMirror.Session/
 ├─ AGENTS.md
 ├─ Directory.Build.props
 ├─ README.md
@@ -96,3 +97,12 @@ The public release will not bundle the currently installed ge9 compatibility bin
 The production target is a VQM-owned IddCx driver derived from Microsoft's official IddSample source, with unique VQM identity, stable 1–4 monitor lifecycle and Microsoft production signing.
 
 See `docs/DRIVER_RELEASE_STRATEGY.md`.
+
+
+## Native .NET mirror preview
+
+The setup UI now includes an opt-in `.NET GDI + Portal (preview)` engine.
+
+It runs in `VirtualQHDMirror.Session.exe` so mirroring can survive setup-window closure and be reattached later. The stable v0.14.1 engine remains the default until the preview passes regression testing.
+
+See `docs/V020_NATIVE_SESSION_PREVIEW.md`.
