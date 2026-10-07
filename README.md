@@ -111,3 +111,6 @@ See `docs/V020_NATIVE_SESSION_PREVIEW.md`.
 ### Development session isolation
 
 Native preview sessions run from a shadow copy under `%LOCALAPPDATA%\VirtualQHDMirror\runtime\sessions` rather than directly from `src/.../bin`. This allows the setup app and solution to be rebuilt/reopened while a mirror session remains active.
+
+
+During the preview phase, shadow-copy session directories are intentionally not auto-deleted at startup; safe stale-runtime cleanup will be added separately so a detached live session is never partially deleted.

@@ -126,7 +126,7 @@ The runtime now uses a shadow-copy model:
    `%LOCALAPPDATA%\VirtualQHDMirror\runtime\sessions\<unique-id>\`,
 3. launch the copied `VirtualQHDMirror.Session.exe`,
 4. leave `src/VirtualQHDMirror.Session/bin/.../` free for subsequent builds,
-5. remove stale shadow-copy directories on a best-effort basis; live-session directories naturally remain locked and are skipped.
+5. keep session runtime directories intact during this preview phase so cleanup can never damage a live detached session. A later housekeeping step will remove directories only when process ownership can be proven absent.
 
 Compatibility for sessions started before this change:
 

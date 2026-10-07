@@ -453,9 +453,6 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
         Directory.CreateDirectory(
             runtimeRoot);
 
-        TryCleanupStaleSessionRuntimeDirectories(
-            runtimeRoot);
-
         var runtimeDirectory =
             Path.Combine(
                 runtimeRoot,
@@ -520,37 +517,6 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
                 sourceFile,
                 destinationFile,
                 overwrite: true);
-        }
-    }
-
-    private static void TryCleanupStaleSessionRuntimeDirectories(
-        string runtimeRoot)
-    {
-        try
-        {
-            foreach (var directory in
-                     Directory.EnumerateDirectories(
-                         runtimeRoot))
-            {
-                try
-                {
-                    Directory.Delete(
-                        directory,
-                        recursive: true);
-                }
-                catch (IOException)
-                {
-                    // A live shadow-copied session may still own this directory.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Best-effort cleanup only.
-                }
-            }
-        }
-        catch
-        {
-            // Runtime cleanup must not prevent a new mirror session from starting.
         }
     }
 
