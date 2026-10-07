@@ -106,3 +106,8 @@ The setup UI now includes an opt-in `.NET GDI + Portal (preview)` engine.
 It runs in `VirtualQHDMirror.Session.exe` so mirroring can survive setup-window closure and be reattached later. The stable v0.14.1 engine remains the default until the preview passes regression testing.
 
 See `docs/V020_NATIVE_SESSION_PREVIEW.md`.
+
+
+### Development session isolation
+
+Native preview sessions run from a shadow copy under `%LOCALAPPDATA%\VirtualQHDMirror\runtime\sessions` rather than directly from `src/.../bin`. This allows the setup app and solution to be rebuilt/reopened while a mirror session remains active.

@@ -113,3 +113,26 @@ When the setup UI is reopened while a mirror session is already running, the eng
 - ambiguous simultaneous sessions → do not claim either engine as authoritative.
 
 This prevents the disabled selector from showing the default Stable value while the UI is actually attached to a native preview session.
+
+
+## Build-output lock isolation
+
+A running native session must not lock the development build output, because the setup UI is intentionally allowed to close and reopen while mirroring continues.
+
+The runtime now uses a shadow-copy model:
+
+1. build `VirtualQHDMirror.Session` normally,
+2. copy the complete session output into
+   `%LOCALAPPDATA%\VirtualQHDMirror\runtime\sessions\<unique-id>\`,
+3. launch the copied `VirtualQHDMirror.Session.exe`,
+4. leave `src/VirtualQHDMirror.Session/bin/.../` free for subsequent builds,
+5. remove stale shadow-copy directories on a best-effort basis; live-session directories naturally remain locked and are skipped.
+
+Compatibility for sessions started before this change:
+
+- `run-v020.cmd` checks whether `VirtualQHDMirror.Session.exe` is already running,
+- if so, it builds only the setup App (plus its Core/DriverManager compile dependencies),
+- the App project no longer has build-only ProjectReferences to Session/ElevatedHelper,
+- therefore reopening the setup UI does not try to overwrite a DLL held by the existing session.
+
+Once that old direct-from-bin session is stopped and a new preview session is started, the shadow-copy runtime path takes over and full solution builds can coexist with the running mirror.

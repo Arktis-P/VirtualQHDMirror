@@ -236,8 +236,12 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
                     : $"{DetectedSessionCount} .NET mirror sessions are already running.");
         }
 
-        var executablePath =
+        var buildExecutablePath =
             ResolveSessionExecutablePath();
+
+        var executablePath =
+            StageSessionRuntime(
+                buildExecutablePath);
 
         var startInfo =
             new ProcessStartInfo
@@ -420,6 +424,134 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
 
         _process.Dispose();
         _process = null;
+    }
+
+    private static string StageSessionRuntime(
+        string buildExecutablePath)
+    {
+        var sourceDirectory =
+            Path.GetDirectoryName(
+                buildExecutablePath);
+
+        if (string.IsNullOrWhiteSpace(
+                sourceDirectory) ||
+            !Directory.Exists(
+                sourceDirectory))
+        {
+            throw new DirectoryNotFoundException(
+                "The built .NET session output directory was not found.");
+        }
+
+        var runtimeRoot =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "VirtualQHDMirror",
+                "runtime",
+                "sessions");
+
+        Directory.CreateDirectory(
+            runtimeRoot);
+
+        TryCleanupStaleSessionRuntimeDirectories(
+            runtimeRoot);
+
+        var runtimeDirectory =
+            Path.Combine(
+                runtimeRoot,
+                $"{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}");
+
+        CopyDirectory(
+            sourceDirectory,
+            runtimeDirectory);
+
+        var stagedExecutablePath =
+            Path.Combine(
+                runtimeDirectory,
+                Path.GetFileName(
+                    buildExecutablePath));
+
+        if (!File.Exists(
+                stagedExecutablePath))
+        {
+            throw new FileNotFoundException(
+                "The staged .NET session executable was not created.",
+                stagedExecutablePath);
+        }
+
+        return stagedExecutablePath;
+    }
+
+    private static void CopyDirectory(
+        string sourceDirectory,
+        string destinationDirectory)
+    {
+        Directory.CreateDirectory(
+            destinationDirectory);
+
+        foreach (var sourceFile in
+                 Directory.EnumerateFiles(
+                     sourceDirectory,
+                     "*",
+                     SearchOption.AllDirectories))
+        {
+            var relativePath =
+                Path.GetRelativePath(
+                    sourceDirectory,
+                    sourceFile);
+
+            var destinationFile =
+                Path.Combine(
+                    destinationDirectory,
+                    relativePath);
+
+            var destinationParent =
+                Path.GetDirectoryName(
+                    destinationFile);
+
+            if (!string.IsNullOrWhiteSpace(
+                    destinationParent))
+            {
+                Directory.CreateDirectory(
+                    destinationParent);
+            }
+
+            File.Copy(
+                sourceFile,
+                destinationFile,
+                overwrite: true);
+        }
+    }
+
+    private static void TryCleanupStaleSessionRuntimeDirectories(
+        string runtimeRoot)
+    {
+        try
+        {
+            foreach (var directory in
+                     Directory.EnumerateDirectories(
+                         runtimeRoot))
+            {
+                try
+                {
+                    Directory.Delete(
+                        directory,
+                        recursive: true);
+                }
+                catch (IOException)
+                {
+                    // A live shadow-copied session may still own this directory.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Best-effort cleanup only.
+                }
+            }
+        }
+        catch
+        {
+            // Runtime cleanup must not prevent a new mirror session from starting.
+        }
     }
 
     private static string ResolveSessionExecutablePath()
