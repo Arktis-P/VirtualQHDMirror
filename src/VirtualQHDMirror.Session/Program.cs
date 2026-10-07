@@ -177,6 +177,7 @@ internal static class Program
             };
 
             return Enum.IsDefined(
+                typeof(MirrorRenderMode),
                 mode);
         }
     }
