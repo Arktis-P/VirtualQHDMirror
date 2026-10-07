@@ -13,18 +13,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set "VQM_NATIVE_SESSION_RUNNING="
-tasklist /FI "IMAGENAME eq VirtualQHDMirror.Session.exe" /NH 2>nul | find /I "VirtualQHDMirror.Session.exe" >nul
-if not errorlevel 1 set "VQM_NATIVE_SESSION_RUNNING=1"
-
-if defined VQM_NATIVE_SESSION_RUNNING (
-    echo [VirtualQHDMirror v0.20] Existing .NET mirror session detected.
-    echo [VirtualQHDMirror v0.20] Building setup app only to avoid touching locked session binaries...
-    dotnet build "%~dp0src\VirtualQHDMirror.App\VirtualQHDMirror.App.csproj" --configuration Debug
-) else (
-    echo [VirtualQHDMirror v0.20] Building solution...
-    dotnet build "%~dp0VirtualQHDMirror.sln" --configuration Debug
-)
+echo [VirtualQHDMirror v0.20] Building solution...
+dotnet build "%~dp0VirtualQHDMirror.sln" --configuration Debug
 
 if errorlevel 1 (
     echo.

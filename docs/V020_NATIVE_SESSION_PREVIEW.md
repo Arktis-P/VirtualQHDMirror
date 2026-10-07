@@ -136,3 +136,17 @@ Compatibility for sessions started before this change:
 - therefore reopening the setup UI does not try to overwrite a DLL held by the existing session.
 
 Once that old direct-from-bin session is stopped and a new preview session is started, the shadow-copy runtime path takes over and full solution builds can coexist with the running mirror.
+
+
+## Build-output lock verification
+
+Verified on the development Windows machine:
+
+- native .NET mirror session remained active,
+- `run-v020.cmd` was launched again,
+- the complete solution rebuilt successfully while the session was still running,
+- the setup UI reopened and reattached to the existing native session.
+
+This confirms the shadow-copy session runtime isolates live session DLL locks from `src/.../bin/Debug`.
+
+The temporary process-detection/App-only build fallback is no longer needed. `run-v020.cmd` now always performs a normal full solution build before reopening the setup UI.
