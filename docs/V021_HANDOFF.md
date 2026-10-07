@@ -49,6 +49,25 @@ Implement a GPU-native presentation prototype while retaining GDI as fallback:
 7. Run 1 h first, then 8 h/overnight soak once the GPU path is stable.
 8. Preserve current display discovery, driver planning, session reattachment and Portal input behavior unless a specific regression requires change.
 
+## v0.21 implementation progress
+
+### M1-A — D3D11 cursor presentation prototype
+
+Implemented for the first v0.21 checkpoint:
+
+- D3D11 + DXGI Desktop Duplication source acquisition.
+- Flip-model swap-chain presentation using `Present(1)` for destination VSync pacing.
+- Cursor captured and composited as an independent GPU texture.
+- Cursor destination placement/hotspot remains floating-point until shader rasterization.
+- Portal-active D3D11 presentation uses one VSync-paced loop rather than competing full-frame and cursor presents.
+- Automatic runtime fallback to the accepted v0.20 GDI renderer.
+- `VQM_RENDER_BACKEND=gdi` override for regression comparison.
+- D3D11 frame/present, memory, handle, and GDI-object diagnostics.
+
+Detailed design and validation gate: `docs/V021_CURSOR_PRESENTATION.md`.
+
+Remote editor limitation: Windows build/runtime validation is still required before M1-A is considered accepted. Do not remove the GDI fallback.
+
 ## Version policy
 
 Next version is `v0.21`. Continue sequentially (`v0.22`, `v0.23`, ...) unless there is an explicit reason to make a larger version jump.

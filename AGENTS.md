@@ -54,7 +54,9 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 - Stable runnable fallback: `archive/v0.14.1/`
 - Stable root entry point: `run.cmd`
 - Public-release development entry point: `run-v020.cmd`
-- Public-release migration branch: `gpt/public-release-v0.20`
+- Public-release v0.20 baseline: `main` / `gpt/public-release-v0.20` (closed)
+- Active v0.21 development branch: `gpt/public-release-v0.21`
+- v0.21 cursor-presentation handoff: `docs/V021_HANDOFF.md`
 - Public-release .NET code: `src/`
 - Active documentation: `docs/`
 - Historical runnable baselines: `archive/v0.12/`, `archive/v0.13.1/`, `archive/v0.14.1/`
