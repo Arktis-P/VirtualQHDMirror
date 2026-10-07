@@ -14,6 +14,9 @@ public enum NativeMouseButton
 
 public sealed class WindowsPointerInjector
 {
+    internal static readonly UIntPtr InjectionMarker =
+        new(0x56514D50u);
+
     private const uint InputMouse = 0;
 
     private const uint MouseEventMove = 0x0001;
@@ -229,7 +232,8 @@ public sealed class WindowsPointerInjector
                     X = x,
                     Y = y,
                     MouseData = data,
-                    Flags = flags
+                    Flags = flags,
+                    ExtraInfo = InjectionMarker
                 }
             }
         };

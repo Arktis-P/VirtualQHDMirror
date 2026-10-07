@@ -186,3 +186,22 @@ The GUI launcher now checks for an already-running VirtualQHDMirror setup proces
 - this prevents the running setup process from locking App/Core/DriverManager binaries during a redundant rebuild,
 - if the process exists but has no usable window yet, the launcher reports that state instead of attempting a conflicting build,
 - dotnet CLI output is forced to English for redirected build logs/error messages to avoid mixed-codepage mojibake.
+
+
+## Event-driven Portal precision assist
+
+The final v0.20 Portal refinement does not raise the screen render rate. Instead it adds a low-cost precision assist that is active only while Portal owns the source pointer.
+
+Implementation:
+
+- a `WH_MOUSE_LL` mouse-move hook is installed only for the active Portal,
+- it observes the screen-space pointer position after normal Windows mouse sensitivity/acceleration has already been applied,
+- source deltas up to 2 px receive the full source/destination scale compensation,
+- compensation fades smoothly to 1.0× between 2 px and 12 px of movement,
+- movement at 12 px or above is unchanged,
+- fractional compensation is retained as residual instead of being discarded by integer rounding,
+- all VirtualQHDMirror `SendInput` events carry a private `dwExtraInfo` marker and are ignored by the precision hook,
+- the hook also ignores ordinary injected low-level mouse events to prevent feedback loops,
+- Portal exit immediately removes the hook and clears residual state.
+
+For the current 2560×1440 → 1920×1080 profile, the maximum low-speed gain is 4/3. This does not change Windows mouse settings and does not add continuous 100/120 Hz full-frame rendering; CPU work is proportional only to actual mouse-move events while Portal is active.

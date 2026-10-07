@@ -16,6 +16,7 @@ public sealed class PortalInputController : IDisposable
     private readonly PortalInputGeometry _geometry;
     private readonly IReadOnlyList<PixelRect> _activeMonitorRects;
     private readonly WindowsPointerInjector _pointer;
+    private readonly PortalPointerPrecisionFilter _precisionFilter;
 
     private PortalEdge _blockedEdge;
     private PixelPoint _lastPortalCursor;
@@ -38,6 +39,11 @@ public sealed class PortalInputController : IDisposable
 
         _pointer = pointer ??
             new WindowsPointerInjector();
+
+        _precisionFilter =
+            new PortalPointerPrecisionFilter(
+                _geometry,
+                _pointer);
     }
 
     public event EventHandler? Activity;
@@ -95,6 +101,9 @@ public sealed class PortalInputController : IDisposable
             ResetState();
             return false;
         }
+
+        _precisionFilter.Start(
+            sourcePoint);
 
         RaiseActivity();
         return true;
@@ -224,11 +233,13 @@ public sealed class PortalInputController : IDisposable
             EndToDestination();
         }
 
+        _precisionFilter.Dispose();
         _disposed = true;
     }
 
     private void ResetState()
     {
+        _precisionFilter.Stop();
         IsActive = false;
         _blockedEdge = PortalEdge.None;
         _lastPortalCursorValid = false;
