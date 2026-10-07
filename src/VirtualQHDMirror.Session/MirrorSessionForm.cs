@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Forms;
 using VirtualQHDMirror.Core.Displays;
 using VirtualQHDMirror.Core.Input;
@@ -31,6 +30,8 @@ internal sealed class MirrorSessionForm : Form
 
     private const int DwmwaDisallowPeek = 11;
     private const int DwmwaExcludedFromPeek = 12;
+
+    private const int PortalLowLatencyIntervalMilliseconds = 8;
 
     private readonly DisplayEndpoint _source;
     private readonly DisplayEndpoint _destination;
@@ -218,10 +219,13 @@ internal sealed class MirrorSessionForm : Form
         _portal.UpdateDestinationLocal(
             local);
 
-        if (!_portal.IsActive)
+        if (!_portal.IsActive &&
+            _portal.Begin(local))
         {
-            _portal.Begin(
-                local);
+            ApplyInterval(
+                PortalLowLatencyIntervalMilliseconds);
+
+            DrawFrame();
         }
 
         base.OnMouseMove(
@@ -244,8 +248,10 @@ internal sealed class MirrorSessionForm : Form
         if (!_portal.IsActive &&
             _portal.Begin(local))
         {
-            Application.DoEvents();
-            Thread.Sleep(10);
+            ApplyInterval(
+                PortalLowLatencyIntervalMilliseconds);
+
+            DrawFrame();
 
             if (TryMapMouseButton(
                     e.Button,
@@ -276,8 +282,11 @@ internal sealed class MirrorSessionForm : Form
         if (!_portal.IsActive &&
             _portal.Begin(local))
         {
-            Application.DoEvents();
-            Thread.Sleep(10);
+            ApplyInterval(
+                PortalLowLatencyIntervalMilliseconds);
+
+            DrawFrame();
+
             _portal.SendWheel(
                 e.Delta);
         }
@@ -394,6 +403,15 @@ internal sealed class MirrorSessionForm : Form
 
     private void AdjustInterval()
     {
+        if (_renderMode ==
+                MirrorRenderMode.Adaptive &&
+            _portal.IsActive)
+        {
+            ApplyInterval(
+                PortalLowLatencyIntervalMilliseconds);
+            return;
+        }
+
         var idleTime =
             DateTimeOffset.UtcNow -
             _lastInput;
@@ -434,7 +452,10 @@ internal sealed class MirrorSessionForm : Form
         if (_renderMode ==
             MirrorRenderMode.Adaptive)
         {
-            ApplyInterval(16);
+            ApplyInterval(
+                _portal.IsActive
+                    ? PortalLowLatencyIntervalMilliseconds
+                    : 16);
         }
     }
 

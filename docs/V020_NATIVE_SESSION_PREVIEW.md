@@ -150,3 +150,17 @@ Verified on the development Windows machine:
 This confirms the shadow-copy session runtime isolates live session DLL locks from `src/.../bin/Debug`.
 
 The temporary process-detection/App-only build fallback is no longer needed. `run-v020.cmd` now always performs a normal full solution build before reopening the setup UI.
+
+
+## Portal low-latency tuning
+
+Functional parity testing confirmed that pointer shape/position, clicks, wheel, drag and ordinary Portal behavior match the stable path. The remaining issue was visual cursor smoothness and slight perceived latency.
+
+The native preview now applies a low-latency Adaptive policy only while Portal input is active:
+
+- Portal active + Adaptive: 8 ms target interval (~120 Hz),
+- Portal inactive: retain the existing Adaptive 16 / 33 / 66 ms policy,
+- entering Portal triggers an immediate frame instead of waiting for the next timer tick,
+- the inherited 10 ms fixed sleep on first click/wheel Portal entry has been removed.
+
+This intentionally raises full-frame GDI work only while the user is actively controlling the mirrored source. The stable v0.14.1 engine remains unchanged.
