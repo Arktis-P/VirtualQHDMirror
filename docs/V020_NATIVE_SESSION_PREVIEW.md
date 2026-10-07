@@ -170,3 +170,15 @@ The cursor dirty-rectangle path uses the same destination window/DC as the norma
 If cursor-only refresh encounters a runtime error, only the dirty-rectangle cursor renderer is disabled. The 100 Hz Portal input/edge polling continues, while cursor presentation safely falls back to the normal full-frame path.
 
 Pointer gain is deliberately unchanged. Perceived cursor weight should be reevaluated after this visual-latency optimization before any movement scaling is introduced.
+
+
+## GUI development launcher
+
+The v0.20 development entry point now mirrors the stable launch experience:
+
+- run-v020.cmd immediately delegates to run-v020.vbs,
+- VBScript starts run-v020.ps1 with the PowerShell window hidden,
+- a small WinForms preparation dialog remains visible while the local solution is built,
+- successful builds launch the WPF VirtualQHDMirror.exe directly, without dotnet run and without a persistent console,
+- build output is written to %LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log,
+- build/startup failures are reported with a GUI message box.

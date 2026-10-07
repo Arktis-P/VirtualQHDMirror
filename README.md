@@ -114,3 +114,14 @@ Native preview sessions run from a shadow copy under `%LOCALAPPDATA%\VirtualQHDM
 
 
 During the preview phase, shadow-copy session directories are intentionally not auto-deleted at startup; safe stale-runtime cleanup will be added separately so a detached live session is never partially deleted.
+
+
+### v0.20 GUI launcher
+
+run-v020.cmd now follows the same user-facing launch pattern as the stable v0.14.1 entry point. It delegates to a hidden VBScript/PowerShell bootstrapper, displays a small GUI preparation window while the local Debug solution is built, and then launches the WPF setup UI without leaving a console window open.
+
+Build output is stored locally at:
+
+%LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log
+
+Build/startup failures are shown through a GUI error dialog instead of a persistent console window.
