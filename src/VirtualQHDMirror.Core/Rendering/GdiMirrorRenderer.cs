@@ -16,6 +16,7 @@ public sealed class GdiMirrorRenderer : IDisposable
 {
     private const uint Srccopy = 0x00CC0020;
     private const int Halftone = 4;
+    private const int CursorRestorePadding = 3;
 
     private readonly IntPtr _sourceDc;
     private readonly int _sourceLeft;
@@ -28,6 +29,7 @@ public sealed class GdiMirrorRenderer : IDisposable
     private IntPtr _destinationDc;
     private int _destinationOwnerThreadId;
     private double _smoothedFrameCostMilliseconds;
+    private GdiCursorPlacement? _lastCursorPlacement;
     private bool _disposed;
 
     public GdiMirrorRenderer(
@@ -50,7 +52,8 @@ public sealed class GdiMirrorRenderer : IDisposable
         int sourceWidth,
         int sourceHeight)
     {
-        if (string.IsNullOrWhiteSpace(sourceDeviceName))
+        if (string.IsNullOrWhiteSpace(
+                sourceDeviceName))
         {
             throw new ArgumentException(
                 "Source display device name is required.",
@@ -74,11 +77,12 @@ public sealed class GdiMirrorRenderer : IDisposable
         _sourceWidth = sourceWidth;
         _sourceHeight = sourceHeight;
 
-        _sourceDc = NativeMethods.CreateDC(
-            "DISPLAY",
-            sourceDeviceName,
-            null,
-            IntPtr.Zero);
+        _sourceDc =
+            NativeMethods.CreateDC(
+                "DISPLAY",
+                sourceDeviceName,
+                null,
+                IntPtr.Zero);
 
         if (_sourceDc == IntPtr.Zero)
         {
@@ -99,7 +103,8 @@ public sealed class GdiMirrorRenderer : IDisposable
     {
         EnsureNotDisposed();
 
-        if (destinationWindow == IntPtr.Zero)
+        if (destinationWindow ==
+            IntPtr.Zero)
         {
             throw new ArgumentException(
                 "Destination window handle is required.",
@@ -108,10 +113,12 @@ public sealed class GdiMirrorRenderer : IDisposable
 
         DetachDestination();
 
-        var destinationDc = NativeMethods.GetDC(
-            destinationWindow);
+        var destinationDc =
+            NativeMethods.GetDC(
+                destinationWindow);
 
-        if (destinationDc == IntPtr.Zero)
+        if (destinationDc ==
+            IntPtr.Zero)
         {
             throw new Win32Exception(
                 Marshal.GetLastWin32Error(),
@@ -122,7 +129,9 @@ public sealed class GdiMirrorRenderer : IDisposable
                 destinationDc,
                 Halftone) == 0)
         {
-            var error = Marshal.GetLastWin32Error();
+            var error =
+                Marshal.GetLastWin32Error();
+
             NativeMethods.ReleaseDC(
                 destinationWindow,
                 destinationDc);
@@ -138,7 +147,9 @@ public sealed class GdiMirrorRenderer : IDisposable
                 0,
                 IntPtr.Zero))
         {
-            var error = Marshal.GetLastWin32Error();
+            var error =
+                Marshal.GetLastWin32Error();
+
             NativeMethods.ReleaseDC(
                 destinationWindow,
                 destinationDc);
@@ -148,59 +159,81 @@ public sealed class GdiMirrorRenderer : IDisposable
                 "SetBrushOrgEx failed for the mirror destination.");
         }
 
-        _destinationWindow = destinationWindow;
-        _destinationDc = destinationDc;
+        _destinationWindow =
+            destinationWindow;
+
+        _destinationDc =
+            destinationDc;
+
         _destinationOwnerThreadId =
             Environment.CurrentManagedThreadId;
+
+        _lastCursorPlacement =
+            null;
     }
 
     public GdiRenderFrameResult RenderFrame(
         int destinationWidth,
         int destinationHeight)
     {
-        EnsureNotDisposed();
-        EnsureDestinationAttached();
-        EnsureDestinationThread();
-
-        if (destinationWidth <= 0 ||
-            destinationHeight <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(destinationWidth),
-                "Destination dimensions must be positive.");
-        }
-
-        var start = Stopwatch.GetTimestamp();
-
-        var success = NativeMethods.StretchBlt(
-            _destinationDc,
-            0,
-            0,
+        ValidateDestination(
             destinationWidth,
-            destinationHeight,
-            _sourceDc,
-            0,
-            0,
-            _sourceWidth,
-            _sourceHeight,
-            Srccopy);
+            destinationHeight);
 
-        var nativeError = success
-            ? 0
-            : Marshal.GetLastWin32Error();
+        var start =
+            Stopwatch.GetTimestamp();
+
+        var success =
+            NativeMethods.StretchBlt(
+                _destinationDc,
+                0,
+                0,
+                destinationWidth,
+                destinationHeight,
+                _sourceDc,
+                0,
+                0,
+                _sourceWidth,
+                _sourceHeight,
+                Srccopy);
+
+        var nativeError =
+            success
+                ? 0
+                : Marshal.GetLastWin32Error();
 
         var cursorComposited =
-            success &&
-            _cursorCompositor.TryDraw(
-                _destinationDc,
+            false;
+
+        if (success &&
+            _cursorCompositor.TryGetPlacement(
                 _sourceLeft,
                 _sourceTop,
                 _sourceWidth,
                 _sourceHeight,
                 destinationWidth,
-                destinationHeight);
+                destinationHeight,
+                out var placement))
+        {
+            cursorComposited =
+                _cursorCompositor.Draw(
+                    _destinationDc,
+                    placement);
 
-        var end = Stopwatch.GetTimestamp();
+            _lastCursorPlacement =
+                cursorComposited
+                    ? placement
+                    : null;
+        }
+        else
+        {
+            _lastCursorPlacement =
+                null;
+        }
+
+        var end =
+            Stopwatch.GetTimestamp();
+
         var frameCostMilliseconds =
             (end - start) *
             1000.0 /
@@ -216,17 +249,83 @@ public sealed class GdiMirrorRenderer : IDisposable
             Success: success,
             NativeError: nativeError,
             CursorComposited: cursorComposited,
-            FrameCostMilliseconds: frameCostMilliseconds,
+            FrameCostMilliseconds:
+                frameCostMilliseconds,
             SmoothedFrameCostMilliseconds:
                 _smoothedFrameCostMilliseconds);
     }
 
+    public bool RenderCursorUpdate(
+        int destinationWidth,
+        int destinationHeight)
+    {
+        ValidateDestination(
+            destinationWidth,
+            destinationHeight);
+
+        var hasCurrentPlacement =
+            _cursorCompositor.TryGetPlacement(
+                _sourceLeft,
+                _sourceTop,
+                _sourceWidth,
+                _sourceHeight,
+                destinationWidth,
+                destinationHeight,
+                out var currentPlacement);
+
+        if (_lastCursorPlacement is
+                GdiCursorPlacement previousPlacement &&
+            hasCurrentPlacement &&
+            previousPlacement ==
+                currentPlacement)
+        {
+            return false;
+        }
+
+        if (_lastCursorPlacement is
+            GdiCursorPlacement previous)
+        {
+            RestoreCursorBackground(
+                previous,
+                destinationWidth,
+                destinationHeight);
+        }
+
+        if (!hasCurrentPlacement)
+        {
+            _lastCursorPlacement =
+                null;
+
+            return true;
+        }
+
+        var drawn =
+            _cursorCompositor.Draw(
+                _destinationDc,
+                currentPlacement);
+
+        _lastCursorPlacement =
+            drawn
+                ? currentPlacement
+                : null;
+
+        return drawn;
+    }
+
     public void DetachDestination()
     {
-        if (_destinationDc == IntPtr.Zero)
+        if (_destinationDc ==
+            IntPtr.Zero)
         {
-            _destinationWindow = IntPtr.Zero;
-            _destinationOwnerThreadId = 0;
+            _destinationWindow =
+                IntPtr.Zero;
+
+            _destinationOwnerThreadId =
+                0;
+
+            _lastCursorPlacement =
+                null;
+
             return;
         }
 
@@ -236,9 +335,17 @@ public sealed class GdiMirrorRenderer : IDisposable
             _destinationWindow,
             _destinationDc);
 
-        _destinationDc = IntPtr.Zero;
-        _destinationWindow = IntPtr.Zero;
-        _destinationOwnerThreadId = 0;
+        _destinationDc =
+            IntPtr.Zero;
+
+        _destinationWindow =
+            IntPtr.Zero;
+
+        _destinationOwnerThreadId =
+            0;
+
+        _lastCursorPlacement =
+            null;
     }
 
     public void Dispose()
@@ -250,7 +357,8 @@ public sealed class GdiMirrorRenderer : IDisposable
 
         DetachDestination();
 
-        if (_sourceDc != IntPtr.Zero)
+        if (_sourceDc !=
+            IntPtr.Zero)
         {
             NativeMethods.DeleteDC(
                 _sourceDc);
@@ -259,9 +367,124 @@ public sealed class GdiMirrorRenderer : IDisposable
         _disposed = true;
     }
 
+    private void RestoreCursorBackground(
+        GdiCursorPlacement placement,
+        int destinationWidth,
+        int destinationHeight)
+    {
+        var left =
+            Math.Max(
+                0,
+                placement.X -
+                CursorRestorePadding);
+
+        var top =
+            Math.Max(
+                0,
+                placement.Y -
+                CursorRestorePadding);
+
+        var right =
+            Math.Min(
+                destinationWidth,
+                placement.X +
+                placement.Width +
+                CursorRestorePadding);
+
+        var bottom =
+            Math.Min(
+                destinationHeight,
+                placement.Y +
+                placement.Height +
+                CursorRestorePadding);
+
+        if (right <= left ||
+            bottom <= top)
+        {
+            return;
+        }
+
+        var sourceLeft =
+            Math.Clamp(
+                (int)Math.Floor(
+                    left *
+                    _sourceWidth /
+                    (double)destinationWidth),
+                0,
+                _sourceWidth - 1);
+
+        var sourceTop =
+            Math.Clamp(
+                (int)Math.Floor(
+                    top *
+                    _sourceHeight /
+                    (double)destinationHeight),
+                0,
+                _sourceHeight - 1);
+
+        var sourceRight =
+            Math.Clamp(
+                (int)Math.Ceiling(
+                    right *
+                    _sourceWidth /
+                    (double)destinationWidth),
+                sourceLeft + 1,
+                _sourceWidth);
+
+        var sourceBottom =
+            Math.Clamp(
+                (int)Math.Ceiling(
+                    bottom *
+                    _sourceHeight /
+                    (double)destinationHeight),
+                sourceTop + 1,
+                _sourceHeight);
+
+        var restored =
+            NativeMethods.StretchBlt(
+                _destinationDc,
+                left,
+                top,
+                right - left,
+                bottom - top,
+                _sourceDc,
+                sourceLeft,
+                sourceTop,
+                sourceRight -
+                    sourceLeft,
+                sourceBottom -
+                    sourceTop,
+                Srccopy);
+
+        if (!restored)
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "Failed to restore the previous software cursor region.");
+        }
+    }
+
+    private void ValidateDestination(
+        int destinationWidth,
+        int destinationHeight)
+    {
+        EnsureNotDisposed();
+        EnsureDestinationAttached();
+        EnsureDestinationThread();
+
+        if (destinationWidth <= 0 ||
+            destinationHeight <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(destinationWidth),
+                "Destination dimensions must be positive.");
+        }
+    }
+
     private void EnsureDestinationAttached()
     {
-        if (_destinationDc == IntPtr.Zero)
+        if (_destinationDc ==
+            IntPtr.Zero)
         {
             throw new InvalidOperationException(
                 "A destination window must be attached before rendering.");

@@ -4,6 +4,13 @@ using System.Runtime.InteropServices;
 
 namespace VirtualQHDMirror.Core.Rendering;
 
+internal readonly record struct GdiCursorPlacement(
+    IntPtr Cursor,
+    int X,
+    int Y,
+    int Width,
+    int Height);
+
 internal sealed class GdiCursorCompositor
 {
     private const uint CursorShowing = 0x00000001;
@@ -12,15 +19,17 @@ internal sealed class GdiCursorCompositor
     private readonly Dictionary<IntPtr, CursorShape>
         _shapeCache = new();
 
-    public bool TryDraw(
-        IntPtr destinationDc,
+    public bool TryGetPlacement(
         int sourceLeft,
         int sourceTop,
         int sourceWidth,
         int sourceHeight,
         int destinationWidth,
-        int destinationHeight)
+        int destinationHeight,
+        out GdiCursorPlacement placement)
     {
+        placement = default;
+
         var cursorInfo = new CursorInfo
         {
             Size = checked(
@@ -97,17 +106,30 @@ internal sealed class GdiCursorCompositor
                 scaleY) -
             hotspotY;
 
-        return NativeMethods.DrawIconEx(
+        placement =
+            new GdiCursorPlacement(
+                cursorInfo.Cursor,
+                destinationX,
+                destinationY,
+                drawWidth,
+                drawHeight);
+
+        return true;
+    }
+
+    public bool Draw(
+        IntPtr destinationDc,
+        GdiCursorPlacement placement) =>
+        NativeMethods.DrawIconEx(
             destinationDc,
-            destinationX,
-            destinationY,
-            cursorInfo.Cursor,
-            drawWidth,
-            drawHeight,
+            placement.X,
+            placement.Y,
+            placement.Cursor,
+            placement.Width,
+            placement.Height,
             0,
             IntPtr.Zero,
             DiNormal);
-    }
 
     private CursorShape GetShape(
         IntPtr cursor)
@@ -119,11 +141,12 @@ internal sealed class GdiCursorCompositor
             return cached;
         }
 
-        var shape = new CursorShape(
-            Width: 32,
-            Height: 32,
-            HotspotX: 0,
-            HotspotY: 0);
+        var shape =
+            new CursorShape(
+                Width: 32,
+                Height: 32,
+                HotspotX: 0,
+                HotspotY: 0);
 
         if (NativeMethods.GetIconInfo(
                 cursor,
@@ -134,7 +157,8 @@ internal sealed class GdiCursorCompositor
 
             try
             {
-                var bitmap = new BitmapInfo();
+                var bitmap =
+                    new BitmapInfo();
 
                 if (iconInfo.ColorBitmap != IntPtr.Zero &&
                     NativeMethods.GetObject(
@@ -184,13 +208,14 @@ internal sealed class GdiCursorCompositor
                 }
             }
 
-            shape = new CursorShape(
-                Width: width,
-                Height: height,
-                HotspotX: checked(
-                    (int)iconInfo.HotspotX),
-                HotspotY: checked(
-                    (int)iconInfo.HotspotY));
+            shape =
+                new CursorShape(
+                    Width: width,
+                    Height: height,
+                    HotspotX: checked(
+                        (int)iconInfo.HotspotX),
+                    HotspotY: checked(
+                        (int)iconInfo.HotspotY));
         }
 
         _shapeCache[cursor] =
@@ -199,7 +224,7 @@ internal sealed class GdiCursorCompositor
         return shape;
     }
 
-    private sealed record CursorShape(
+    private readonly record struct CursorShape(
         int Width,
         int Height,
         int HotspotX,

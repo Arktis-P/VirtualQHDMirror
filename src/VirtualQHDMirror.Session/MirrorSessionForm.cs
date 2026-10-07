@@ -31,12 +31,16 @@ internal sealed class MirrorSessionForm : Form
     private const int DwmwaDisallowPeek = 11;
     private const int DwmwaExcludedFromPeek = 12;
 
+    private const int MinimumFullFrameIntervalMilliseconds = 16;
+    private const int CursorPollIntervalMilliseconds = 8;
+
     private readonly DisplayEndpoint _source;
     private readonly DisplayEndpoint _destination;
     private readonly GdiMirrorRenderer _renderer;
     private readonly WindowsPointerInjector _pointer;
     private readonly PortalInputController _portal;
-    private readonly System.Windows.Forms.Timer _timer;
+    private readonly System.Windows.Forms.Timer _frameTimer;
+    private readonly System.Windows.Forms.Timer _cursorTimer;
 
     private MirrorRenderMode _renderMode;
     private DateTimeOffset _lastInput =
@@ -45,6 +49,7 @@ internal sealed class MirrorSessionForm : Form
     private int _lastInterval = -1;
     private bool _timerResolutionRaised;
     private bool _cleanupStarted;
+    private bool _cursorUpdateDisabled;
     private int _consecutiveRenderFailures;
 
     public MirrorSessionForm(
@@ -118,11 +123,21 @@ internal sealed class MirrorSessionForm : Form
         ShowInTaskbar = false;
         DoubleBuffered = false;
 
-        _timer =
+        _frameTimer =
             new System.Windows.Forms.Timer();
 
-        _timer.Tick +=
-            Timer_Tick;
+        _frameTimer.Tick +=
+            FrameTimer_Tick;
+
+        _cursorTimer =
+            new System.Windows.Forms.Timer
+            {
+                Interval =
+                    CursorPollIntervalMilliseconds
+            };
+
+        _cursorTimer.Tick +=
+            CursorTimer_Tick;
 
         Shown +=
             MirrorSessionForm_Shown;
@@ -220,6 +235,7 @@ internal sealed class MirrorSessionForm : Form
         if (!_portal.IsActive &&
             _portal.Begin(local))
         {
+            BeginPortalCursorPolling();
             DrawFrame();
         }
 
@@ -243,6 +259,7 @@ internal sealed class MirrorSessionForm : Form
         if (!_portal.IsActive &&
             _portal.Begin(local))
         {
+            BeginPortalCursorPolling();
             DrawFrame();
 
             if (TryMapMouseButton(
@@ -274,6 +291,7 @@ internal sealed class MirrorSessionForm : Form
         if (!_portal.IsActive &&
             _portal.Begin(local))
         {
+            BeginPortalCursorPolling();
             DrawFrame();
 
             _portal.SendWheel(
@@ -322,8 +340,10 @@ internal sealed class MirrorSessionForm : Form
             ModControl | ModAlt,
             VkF9);
 
-        ApplyInterval(16);
-        _timer.Start();
+        ApplyInterval(
+            MinimumFullFrameIntervalMilliseconds);
+
+        _frameTimer.Start();
     }
 
     private void MirrorSessionForm_FormClosing(
@@ -333,13 +353,61 @@ internal sealed class MirrorSessionForm : Form
         Cleanup();
     }
 
-    private void Timer_Tick(
+    private void FrameTimer_Tick(
         object? sender,
         EventArgs e)
     {
         AdjustInterval();
-        _portal.Update();
         DrawFrame();
+    }
+
+    private void CursorTimer_Tick(
+        object? sender,
+        EventArgs e)
+    {
+        if (_cleanupStarted)
+        {
+            _cursorTimer.Stop();
+            return;
+        }
+
+        if (!_portal.IsActive)
+        {
+            _cursorTimer.Stop();
+            return;
+        }
+
+        var portalState =
+            _portal.Update();
+
+        if (portalState !=
+            PortalUpdateState.Active)
+        {
+            _cursorTimer.Stop();
+            DrawFrame();
+            return;
+        }
+
+        if (_cursorUpdateDisabled)
+        {
+            return;
+        }
+
+        try
+        {
+            _renderer.RenderCursorUpdate(
+                ClientSize.Width,
+                ClientSize.Height);
+        }
+        catch (Exception exception)
+        {
+            _cursorUpdateDisabled = true;
+
+            SessionDiagnostics.Write(
+                $"Cursor-only update disabled after an error; Portal polling remains active: {exception.Message}");
+
+            DrawFrame();
+        }
     }
 
     private void DrawFrame()
@@ -396,11 +464,16 @@ internal sealed class MirrorSessionForm : Form
             DateTimeOffset.UtcNow -
             _lastInput;
 
-        ApplyInterval(
+        var requestedInterval =
             MirrorFrameTimingPolicy
                 .GetIntervalMilliseconds(
                     _renderMode,
-                    idleTime));
+                    idleTime);
+
+        ApplyInterval(
+            Math.Max(
+                MinimumFullFrameIntervalMilliseconds,
+                requestedInterval));
     }
 
     private void ApplyInterval(
@@ -420,7 +493,7 @@ internal sealed class MirrorSessionForm : Form
         _lastInterval =
             milliseconds;
 
-        _timer.Interval =
+        _frameTimer.Interval =
             milliseconds;
     }
 
@@ -432,7 +505,8 @@ internal sealed class MirrorSessionForm : Form
         if (_renderMode ==
             MirrorRenderMode.Adaptive)
         {
-            ApplyInterval(16);
+            ApplyInterval(
+                MinimumFullFrameIntervalMilliseconds);
         }
     }
 
@@ -441,6 +515,14 @@ internal sealed class MirrorSessionForm : Form
         EventArgs e)
     {
         MarkInput();
+    }
+
+    private void BeginPortalCursorPolling()
+    {
+        if (!_cursorTimer.Enabled)
+        {
+            _cursorTimer.Start();
+        }
     }
 
     private void ApplyDwmIsolation()
@@ -476,7 +558,8 @@ internal sealed class MirrorSessionForm : Form
 
         _cleanupStarted = true;
 
-        _timer.Stop();
+        _frameTimer.Stop();
+        _cursorTimer.Stop();
 
         NativeMethods.UnregisterHotKey(
             Handle,
@@ -498,7 +581,8 @@ internal sealed class MirrorSessionForm : Form
             _timerResolutionRaised = false;
         }
 
-        _timer.Dispose();
+        _cursorTimer.Dispose();
+        _frameTimer.Dispose();
     }
 
     private static bool TryMapMouseButton(
