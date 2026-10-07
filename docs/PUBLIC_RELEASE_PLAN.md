@@ -1,6 +1,6 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
-기준 버전: **v0.14.1 stable prototype / v0.20 public-release migration**
+기준 버전: **v0.14.1 stable prototype / v0.20 completed .NET migration checkpoint / v0.21 next**
 
 현재 공개화 작업 브랜치: **`gpt/public-release-v0.20`**
 
@@ -15,8 +15,9 @@
 - ✅ **public install/upgrade/repair/uninstall contract** 문서화
 - 🟡 **v0.14.1 GDI renderer .NET backend 이식** — CreateDC/GetDC/HALFTONE StretchBlt/render timing 분리 완료, native session 연결 전
 - 🟡 **Portal/native input + cursor Core 모듈 이식** — 좌표 mapping/clip/SendInput/edge exit/cursor composition 완료, native session 연결 전
-- 🟡 **별도 .NET mirror session preview 연결** — setup 재실행/build-output lock 및 입력 기능 parity 검증 완료; 실제 포인터는 native 유지, full-frame 60/30/15 + cursor-only 8ms dirty refresh로 최종 cursor latency/smoothness 검증 대기
-- ⏭ 다음 gate: cursor-only 8ms latency/smoothness 최종 체감 확인 + 장시간 resource profile 확인 후 v0.20 checkpoint 종료
+- ✅ **v0.20 .NET mirror session checkpoint 종료** — setup 재실행/build-output lock, display pairing, Portal 입력 parity, native pointer, GDI full-frame 60/30/15, cursor-only dirty refresh까지 확보
+- ⚠️ v0.20 known limitation — GDI/software cursor 특성상 60 Hz 물리 출력에서 cursor stepping이 일부 남을 수 있음. 입력 지연/포인터 gain으로 해결하지 않고 v0.21 GPU presentation에서 해결
+- ⏭ **다음 개발 버전: v0.21** — GPU-native presentation + VSync + independent sub-pixel cursor visual + resource/soak profiling
 
 이 문서는 현재의 PowerShell + 동적 C# PoC를 일반 사용자가 설치하고 사용할 수 있는 Windows 애플리케이션으로 끌어올리기 위한 작업 계획이다.
 
@@ -669,26 +670,29 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 - GDI backend 이식
 - 기존 입력 기능 이식
 
-### v0.30
+### v0.21
 
-- D3D11 / Windows Graphics Capture backend
-- cursor engine
-- reconnect / recovery
+- D3D11 / Windows Graphics Capture presentation backend
+- physical destination VSync-aware presentation
+- independent sub-pixel cursor visual
+- GDI backend retained as fallback
+- resource telemetry + long-running soak profiling
+- reconnect / recovery groundwork
 
-### v0.40
+### v0.22
 
-- virtual driver manager
-- configuration UI
+- virtual driver manager integration
+- configuration persistence/UI refinement
 - tray
 - startup
 
-### v0.50-alpha
+### v0.23-alpha
 
 - installer
 - signed app
 - limited external test
 
-### v0.70-beta
+### v0.24-beta
 
 - signed driver
 - fresh-install flow
@@ -756,7 +760,7 @@ branch 정책은 공개 beta 시점에 다시 확정한다. 프로토타입/초�
 6. 🟡 **v0.14.1 GDI renderer를 정식 app 내부 backend로 이식** — Core.Rendering 구현 완료, native session 연결 대기
 7. 🟡 **v0.14.1 Portal/native input + cursor + native session 이식** — 별도 .NET session preview 연결 완료, 실제 회귀 테스트 대기
 8. 설정 저장 + source/destination 선택 UI + 검증된 driver install integration
-9. D3D11 / Windows Graphics Capture backend + reconnect/recovery
+9. **v0.21:** D3D11 / Windows Graphics Capture backend + VSync/sub-pixel cursor + reconnect/recovery
 10. tray / startup / diagnostics + installer/uninstall/rollback
 11. fresh-PC external alpha
 

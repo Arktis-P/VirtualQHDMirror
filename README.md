@@ -5,7 +5,8 @@ VirtualQHDMirror makes a lower-resolution physical Windows display act as an int
 The repository currently has two execution tracks:
 
 - **v0.14.1 stable fallback** — frozen PowerShell implementation under `archive/v0.14.1/`.
-- **v0.20 public-release migration** — .NET/WPF implementation under `src/`, currently focused on display discovery and topology assessment.
+- **v0.20 completed migration checkpoint** — .NET/WPF implementation under `src/` with display discovery, native mirror session, Portal input and GDI/cursor fallback path.
+- **v0.21 next** — GPU-native presentation, VSync-aware output and independent sub-pixel cursor rendering.
 
 ## Run
 
@@ -125,3 +126,8 @@ Build output is stored locally at:
 %LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log
 
 Build/startup failures are shown through a GUI error dialog instead of a persistent console window.
+
+
+## Version progression
+
+Development versions now advance sequentially. The next active version after v0.20 is **v0.21**; large jumps such as v0.20 → v0.30 are not used unless a future release explicitly warrants one.

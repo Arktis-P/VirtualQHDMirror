@@ -201,3 +201,26 @@ The current candidate keeps the actual Windows pointer fully native and separate
 - if cursor-only refresh fails, that optimization is disabled while Portal polling and normal full-frame rendering continue.
 
 This avoids the bandwidth cost of 100/120 Hz full-screen QHD→FHD StretchBlt while reducing the visible software-cursor stepping that remains at 60 Hz.
+
+
+## v0.20 checkpoint closure
+
+v0.20 is closed as the first usable .NET migration checkpoint.
+
+Accepted state:
+
+- automatic display discovery and Physical/Virtual classification work on the development machine,
+- the setup UI can start, stop and reattach to a detached native .NET mirror session,
+- the native session is shadow-copied so a live mirror no longer locks development build outputs,
+- Portal input parity covers pointer movement, clicks, wheel, drag, taskbar/title-bar interaction and cursor shapes,
+- the real source pointer remains native; pointer gain/correction experiments were rejected because they increased perceived lag,
+- full-screen GDI rendering uses the Adaptive 60 / 30 / 15 policy,
+- cursor-only dirty refresh reduces software-cursor stepping without running full-screen QHD→FHD StretchBlt at 100/120 Hz,
+- the GUI launcher runs without leaving a console window open.
+
+Known limitation accepted for this checkpoint:
+
+- software cursor presentation can still show visible stepping on a 60 Hz physical destination,
+- further polling/FPS increases are not the preferred fix because they increase work without increasing the physical panel refresh rate.
+
+The next version is **v0.21**, not v0.30. Its first rendering milestone is GPU-native presentation with VSync-aware scheduling and an independent sub-pixel cursor visual. GDI remains the fallback/reference path.
