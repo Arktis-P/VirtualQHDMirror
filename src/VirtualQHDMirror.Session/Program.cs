@@ -13,12 +13,18 @@ internal static class Program
     private static int Main(
         string[] args)
     {
+        SessionDiagnostics.Reset();
+        SessionDiagnostics.Write(
+            $"Starting native session. args={string.Join(" ", args)}");
+
         try
         {
             if (!SessionArguments.TryParse(
                     args,
                     out var options))
             {
+                SessionDiagnostics.Write(
+                    "Argument parsing failed.");
                 return 10;
             }
 
@@ -34,6 +40,14 @@ internal static class Program
 
             var result =
                 discovery.DiscoverActiveDisplays();
+
+            SessionDiagnostics.Write(
+                $"Discovered {result.Displays.Count} active display path(s): " +
+                string.Join(
+                    " | ",
+                    result.Displays.Select(
+                        display =>
+                            $"{display.SourceName}:{display.FriendlyName}:{display.Resolution}@({display.X},{display.Y})")));
 
             var source =
                 result.Displays.FirstOrDefault(
@@ -54,8 +68,14 @@ internal static class Program
             if (source is null ||
                 destination is null)
             {
+                SessionDiagnostics.Write(
+                    $"Requested endpoints not found. source={options.SourceDevice}; destination={options.DestinationDevice}");
                 return 11;
             }
+
+            SessionDiagnostics.Write(
+                $"Resolved source={source.SourceName} {source.Resolution} @ ({source.X},{source.Y}); " +
+                $"destination={destination.SourceName} {destination.Resolution} @ ({destination.X},{destination.Y})");
 
             var monitorRects =
                 result.Displays
@@ -77,15 +97,27 @@ internal static class Program
                     monitorRects,
                     options.RenderMode);
 
+            SessionDiagnostics.Write(
+                "Entering WinForms mirror session loop.");
+
             Application.Run(
                 form);
 
-            return form.RenderFailureOccurred
-                ? 20
-                : 0;
+            if (form.RenderFailureOccurred)
+            {
+                SessionDiagnostics.Write(
+                    "Session closed after repeated render failures.");
+                return 20;
+            }
+
+            SessionDiagnostics.Write(
+                "Session exited cleanly.");
+            return 0;
         }
-        catch
+        catch (Exception exception)
         {
+            SessionDiagnostics.Write(
+                $"Unhandled startup/session exception:{Environment.NewLine}{exception}");
             return 99;
         }
     }

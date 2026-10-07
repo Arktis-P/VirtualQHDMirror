@@ -90,6 +90,9 @@ internal sealed class MirrorSessionForm : Form
         _portal.Activity +=
             Portal_Activity;
 
+        SessionDiagnostics.Write(
+            $"Creating renderer for source {source.SourceName}.");
+
         _renderer =
             new GdiMirrorRenderer(
                 source.SourceName,
@@ -287,6 +290,9 @@ internal sealed class MirrorSessionForm : Form
         object? sender,
         EventArgs e)
     {
+        SessionDiagnostics.Write(
+            $"Session window shown. hwnd=0x{Handle.ToInt64():X}");
+
         Bounds = new Rectangle(
             _destination.X,
             _destination.Y,
@@ -302,6 +308,9 @@ internal sealed class MirrorSessionForm : Form
 
         _renderer.AttachDestination(
             Handle);
+
+        SessionDiagnostics.Write(
+            $"Destination DC attached. client={ClientSize.Width}x{ClientSize.Height}");
 
         NativeMethods.RegisterHotKey(
             Handle,
@@ -378,6 +387,8 @@ internal sealed class MirrorSessionForm : Form
         }
 
         RenderFailureOccurred = true;
+        SessionDiagnostics.Write(
+            "Five consecutive GDI render failures detected; closing session.");
         Close();
     }
 

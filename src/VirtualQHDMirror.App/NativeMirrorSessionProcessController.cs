@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace VirtualQHDMirror.App;
 
@@ -269,28 +270,45 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
         startInfo.ArgumentList.Add(
             "adaptive");
 
-        var process =
+        using var startupProcess =
             new Process
             {
                 StartInfo =
-                    startInfo,
-                EnableRaisingEvents =
-                    true
+                    startInfo
             };
 
-        process.Exited +=
-            SessionProcess_Exited;
-
-        if (!process.Start())
+        if (!startupProcess.Start())
         {
-            process.Exited -=
-                SessionProcess_Exited;
-
-            process.Dispose();
-
             throw new InvalidOperationException(
                 "The .NET mirror session process did not start.");
         }
+
+        if (!WaitForSessionWindow(
+                startupProcess,
+                TimeSpan.FromSeconds(5)))
+        {
+            var exitCode =
+                startupProcess.HasExited
+                    ? startupProcess.ExitCode
+                    : (int?)null;
+
+            if (!startupProcess.HasExited)
+            {
+                TryTerminateFailedStartup(
+                    startupProcess);
+            }
+
+            throw new InvalidOperationException(
+                BuildStartupFailureMessage(
+                    exitCode));
+        }
+
+        var process =
+            Process.GetProcessById(
+                startupProcess.Id);
+
+        process.Exited +=
+            SessionProcess_Exited;
 
         lock (_gate)
         {
@@ -299,6 +317,8 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
             _detectedSessionCount = 1;
             _attachedFromDiscovery = false;
         }
+
+        process.EnableRaisingEvents = true;
 
         StateChanged?.Invoke(
             this,
@@ -407,17 +427,6 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
         const string executableName =
             "VirtualQHDMirror.Session.exe";
 
-        var installedCandidate =
-            Path.Combine(
-                AppContext.BaseDirectory,
-                executableName);
-
-        if (File.Exists(
-                installedCandidate))
-        {
-            return installedCandidate;
-        }
-
         var repositoryRoot =
             Environment.GetEnvironmentVariable(
                 "VQM_REPO_ROOT");
@@ -425,12 +434,25 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
         if (!string.IsNullOrWhiteSpace(
                 repositoryRoot))
         {
+            var requestedConfiguration =
+                Environment.GetEnvironmentVariable(
+                    "VQM_BUILD_CONFIGURATION");
+
+            var configurations =
+                string.IsNullOrWhiteSpace(
+                    requestedConfiguration)
+                    ? new[]
+                    {
+                        "Debug",
+                        "Release"
+                    }
+                    : new[]
+                    {
+                        requestedConfiguration.Trim()
+                    };
+
             foreach (var configuration in
-                     new[]
-                     {
-                         "Debug",
-                         "Release"
-                     })
+                     configurations)
             {
                 var candidate =
                     Path.Combine(
@@ -450,9 +472,163 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
             }
         }
 
+        var installedCandidate =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                executableName);
+
+        if (File.Exists(
+                installedCandidate))
+        {
+            return installedCandidate;
+        }
+
         throw new FileNotFoundException(
-            "VirtualQHDMirror.Session.exe was not found. Rebuild the v0.20 solution before using the .NET preview engine.");
+            $"VirtualQHDMirror.Session.exe was not found. Expected a freshly built session binary. Run run-v020.cmd again. Diagnostics: {GetSessionLogPath()}");
     }
+
+    private static bool WaitForSessionWindow(
+        Process process,
+        TimeSpan timeout)
+    {
+        var deadline =
+            Stopwatch.GetTimestamp() +
+            (long)(timeout.TotalSeconds *
+                   Stopwatch.Frequency);
+
+        while (Stopwatch.GetTimestamp() <
+               deadline)
+        {
+            try
+            {
+                if (process.HasExited)
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (FindSessionWindowForProcess(
+                    process.Id) != IntPtr.Zero)
+            {
+                return true;
+            }
+
+            Thread.Sleep(50);
+        }
+
+        return false;
+    }
+
+    private static IntPtr FindSessionWindowForProcess(
+        int processId)
+    {
+        var result =
+            IntPtr.Zero;
+
+        NativeMethods.EnumWindows(
+            (window, _) =>
+            {
+                NativeMethods.GetWindowThreadProcessId(
+                    window,
+                    out var windowProcessId);
+
+                if (windowProcessId !=
+                    (uint)processId)
+                {
+                    return true;
+                }
+
+                var titleLength =
+                    NativeMethods.GetWindowTextLength(
+                        window);
+
+                if (titleLength <= 0)
+                {
+                    return true;
+                }
+
+                var title =
+                    new StringBuilder(
+                        titleLength + 1);
+
+                if (NativeMethods.GetWindowText(
+                        window,
+                        title,
+                        title.Capacity) > 0 &&
+                    string.Equals(
+                        title.ToString(),
+                        SessionWindowTitle,
+                        StringComparison.Ordinal))
+                {
+                    result = window;
+                    return false;
+                }
+
+                return true;
+            },
+            IntPtr.Zero);
+
+        return result;
+    }
+
+    private static void TryTerminateFailedStartup(
+        Process process)
+    {
+        try
+        {
+            process.Kill(
+                entireProcessTree: true);
+
+            process.WaitForExit(
+                milliseconds: 1000);
+        }
+        catch
+        {
+            // The process may already have exited.
+        }
+    }
+
+    private static string BuildStartupFailureMessage(
+        int? exitCode)
+    {
+        var reason =
+            exitCode switch
+            {
+                10 =>
+                    "The session rejected its startup arguments.",
+
+                11 =>
+                    "The requested source or destination display could not be rediscovered inside the session process.",
+
+                20 =>
+                    "The GDI renderer failed repeatedly during startup.",
+
+                99 =>
+                    "The .NET session hit an unhandled startup exception.",
+
+                null =>
+                    "The .NET session process stayed alive but did not create its mirror window within 5 seconds.",
+
+                _ =>
+                    $"The .NET session exited during startup with code {exitCode}."
+            };
+
+        return
+            $"{reason}{Environment.NewLine}{Environment.NewLine}" +
+            $"Session diagnostics: {GetSessionLogPath()}";
+    }
+
+    private static string GetSessionLogPath() =>
+        Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "VirtualQHDMirror",
+            "logs",
+            "native-session.log");
 
     private static IReadOnlyList<int> FindSessionProcessIds()
     {

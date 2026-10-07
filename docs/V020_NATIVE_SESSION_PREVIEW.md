@@ -79,3 +79,22 @@ Before the .NET session becomes default it needs direct regression testing for:
 11. Use `Stop Mirror` or Ctrl+Alt+F12 and confirm the pointer is returned and the mirror window closes.
 
 If the preview fails, Ctrl+Alt+F12 is the primary clean escape path. The stable v0.14.1 engine remains selectable afterward.
+
+
+## Startup diagnostics
+
+The preview launcher now treats process creation and mirror readiness as separate states.
+
+`run-v020.cmd` first builds the complete solution so the App, Session and helper binaries are from the same checkout/configuration.
+
+When Start Mirror launches the .NET preview:
+
+1. the controller starts `VirtualQHDMirror.Session.exe`,
+2. waits up to 5 seconds for the exact `VirtualQHDMirror .NET Session` top-level window,
+3. only then marks the mirror as running,
+4. if the process exits early, maps its startup exit code to a user-facing error,
+5. writes detailed native-session diagnostics to:
+
+`%LOCALAPPDATA%\VirtualQHDMirror\logs\native-session.log`
+
+This prevents a fast-crashing child process from appearing as a successful Start Mirror operation.

@@ -2,6 +2,7 @@
 setlocal
 cd /d "%~dp0"
 set "VQM_REPO_ROOT=%~dp0"
+set "VQM_BUILD_CONFIGURATION=Debug"
 
 where dotnet >nul 2>&1
 if errorlevel 1 (
@@ -12,7 +13,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
-dotnet run --project "%~dp0src\VirtualQHDMirror.App\VirtualQHDMirror.App.csproj"
+echo [VirtualQHDMirror v0.20] Building solution...
+dotnet build "%~dp0VirtualQHDMirror.sln" --configuration Debug
+if errorlevel 1 (
+    echo.
+    echo [VirtualQHDMirror v0.20] Build failed.
+    pause
+    exit /b 1
+)
+
+dotnet run --project "%~dp0src\VirtualQHDMirror.App\VirtualQHDMirror.App.csproj" --configuration Debug --no-build
 set "VQM_EXIT=%ERRORLEVEL%"
 
 if not "%VQM_EXIT%"=="0" (
