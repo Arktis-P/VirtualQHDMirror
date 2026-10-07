@@ -31,13 +31,15 @@ The new `VirtualQHDMirror.Core.Rendering` layer contains:
 
 ## Intentional exclusions
 
-Not migrated in this checkpoint:
+Migrated in the following Core checkpoint:
+
+- Portal geometry/native pointer state is now under `Core.Input`,
+- frame-synced software cursor composition and cursor-shape cache are now attached to the GDI renderer.
+
+Still not migrated into a runnable native session:
 
 - mirror-window ownership,
-- Portal/native input,
 - captured/legacy input fallbacks,
-- software cursor composition,
-- cursor-shape cache,
 - diagnostic overlay,
 - hotkeys,
 - DWM Peek isolation.

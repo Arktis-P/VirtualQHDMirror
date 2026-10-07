@@ -8,6 +8,7 @@ namespace VirtualQHDMirror.Core.Rendering;
 public sealed record GdiRenderFrameResult(
     bool Success,
     int NativeError,
+    bool CursorComposited,
     double FrameCostMilliseconds,
     double SmoothedFrameCostMilliseconds);
 
@@ -17,8 +18,11 @@ public sealed class GdiMirrorRenderer : IDisposable
     private const int Halftone = 4;
 
     private readonly IntPtr _sourceDc;
+    private readonly int _sourceLeft;
+    private readonly int _sourceTop;
     private readonly int _sourceWidth;
     private readonly int _sourceHeight;
+    private readonly GdiCursorCompositor _cursorCompositor = new();
 
     private IntPtr _destinationWindow;
     private IntPtr _destinationDc;
@@ -28,6 +32,21 @@ public sealed class GdiMirrorRenderer : IDisposable
 
     public GdiMirrorRenderer(
         string sourceDeviceName,
+        int sourceWidth,
+        int sourceHeight)
+        : this(
+            sourceDeviceName,
+            sourceLeft: 0,
+            sourceTop: 0,
+            sourceWidth,
+            sourceHeight)
+    {
+    }
+
+    public GdiMirrorRenderer(
+        string sourceDeviceName,
+        int sourceLeft,
+        int sourceTop,
         int sourceWidth,
         int sourceHeight)
     {
@@ -50,6 +69,8 @@ public sealed class GdiMirrorRenderer : IDisposable
                 nameof(sourceHeight));
         }
 
+        _sourceLeft = sourceLeft;
+        _sourceTop = sourceTop;
         _sourceWidth = sourceWidth;
         _sourceHeight = sourceHeight;
 
@@ -168,6 +189,17 @@ public sealed class GdiMirrorRenderer : IDisposable
             ? 0
             : Marshal.GetLastWin32Error();
 
+        var cursorComposited =
+            success &&
+            _cursorCompositor.TryDraw(
+                _destinationDc,
+                _sourceLeft,
+                _sourceTop,
+                _sourceWidth,
+                _sourceHeight,
+                destinationWidth,
+                destinationHeight);
+
         var end = Stopwatch.GetTimestamp();
         var frameCostMilliseconds =
             (end - start) *
@@ -183,6 +215,7 @@ public sealed class GdiMirrorRenderer : IDisposable
         return new GdiRenderFrameResult(
             Success: success,
             NativeError: nativeError,
+            CursorComposited: cursorComposited,
             FrameCostMilliseconds: frameCostMilliseconds,
             SmoothedFrameCostMilliseconds:
                 _smoothedFrameCostMilliseconds);
