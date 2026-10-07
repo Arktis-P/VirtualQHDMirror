@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>VirtualQHDMirror.Session</RootNamespace>
+    <AssemblyName>VirtualQHDMirror.Session</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VirtualQHDMirror.Core\VirtualQHDMirror.Core.csproj" />
+  </ItemGroup>
+</Project>
