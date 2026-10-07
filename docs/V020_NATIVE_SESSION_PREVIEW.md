@@ -182,3 +182,20 @@ The v0.20 development entry point now mirrors the stable launch experience:
 - successful builds launch the WPF VirtualQHDMirror.exe directly, without dotnet run and without a persistent console,
 - build output is written to %LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log,
 - build/startup failures are reported with a GUI message box.
+
+
+## Fine pointer precision compensation
+
+After the cursor cadence split, broad pointer movement remained natural but very small adjustments could still feel heavy or quantized. The reason is geometric: a 2560×1440 source is displayed at 1920×1080, so one source pixel occupies only 0.75 destination pixels. Integer cursor presentation can therefore make successive one-pixel source moves appear as "no movement, then a jump."
+
+The native Portal path now applies **micro-movement-only precision compensation**:
+
+- Windows still performs the normal physical mouse movement and acceleration first,
+- the Portal controller observes the resulting source-pixel delta at the existing 100 Hz poll,
+- only movement vectors with a total magnitude of 6 source pixels or less per poll receive compensation,
+- the compensation gain is derived from source/destination scale (4/3 for 2560→1920), capped at 1.5×,
+- fractional extra movement is accumulated instead of discarded, preventing repeated rounding loss,
+- movement above the precision threshold is left at exactly 1.0× and clears any residual,
+- the compensation is applied to the real source pointer, so the visible cursor and click target remain aligned.
+
+This is intentionally not a global mouse-speed change and does not alter Windows pointer settings. It is active only while the Portal owns the source pointer.
