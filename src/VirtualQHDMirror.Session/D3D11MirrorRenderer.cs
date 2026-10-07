@@ -1,7 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using SharpGen.Runtime;
@@ -18,14 +16,15 @@ namespace VirtualQHDMirror.Session;
 internal readonly record struct D3D11RenderFrameResult(
     bool Success,
     bool DesktopFrameUpdated,
+    bool PointerVisible,
     double FrameCostMilliseconds,
     double SmoothedFrameCostMilliseconds);
 
 internal sealed class D3D11MirrorRenderer : IDisposable
 {
-    private const uint CursorShowing = 0x00000001;
-    private const uint DiNormal = 0x0003;
-    private const double CursorTextureRefreshMilliseconds = 125.0;
+    private const int PointerShapeMonochrome = 1;
+    private const int PointerShapeColor = 2;
+    private const int PointerShapeMaskedColor = 4;
 
     private static readonly FeatureLevel[] FeatureLevels =
     [
@@ -90,7 +89,7 @@ internal sealed class D3D11MirrorRenderer : IDisposable
                             cursorUv);
 
                     background.rgb =
-                        cursor.rgb +
+                        cursor.rgb * cursor.a +
                         background.rgb *
                         (1.0f - cursor.a);
                 }
@@ -131,16 +130,17 @@ internal sealed class D3D11MirrorRenderer : IDisposable
     private bool _hasDesktopFrame;
     private bool _disposed;
 
-    private IntPtr _lastCursorHandle;
+    private byte[]? _pointerShapeBuffer;
+    private bool _pointerVisible;
+    private int _pointerX;
+    private int _pointerY;
     private int _cursorNativeWidth = 1;
     private int _cursorNativeHeight = 1;
-    private int _cursorHotspotX;
-    private int _cursorHotspotY;
-    private long _lastCursorTextureRefreshTimestamp;
 
     private long _presentedFrames;
     private long _desktopFrames;
     private long _acquireTimeouts;
+    private long _pointerShapeUpdates;
     private double _smoothedFrameCostMilliseconds;
 
     public D3D11MirrorRenderer(
@@ -179,6 +179,8 @@ internal sealed class D3D11MirrorRenderer : IDisposable
     public long PresentedFrames => _presentedFrames;
     public long DesktopFrames => _desktopFrames;
     public long AcquireTimeouts => _acquireTimeouts;
+    public long PointerShapeUpdates => _pointerShapeUpdates;
+    public bool PointerVisible => _pointerVisible;
     public double SmoothedFrameCostMilliseconds =>
         _smoothedFrameCostMilliseconds;
 
@@ -230,6 +232,12 @@ internal sealed class D3D11MirrorRenderer : IDisposable
 
         _device = device;
         _context = context;
+
+        using (var dxgiDevice =
+               _device.QueryInterface<IDXGIDevice1>())
+        {
+            dxgiDevice.MaximumFrameLatency = 1;
+        }
 
         _duplication =
             _output.DuplicateOutput(
@@ -414,6 +422,8 @@ internal sealed class D3D11MirrorRenderer : IDisposable
             Success: true,
             DesktopFrameUpdated:
                 desktopFrameUpdated,
+            PointerVisible:
+                _pointerVisible,
             FrameCostMilliseconds:
                 frameCostMilliseconds,
             SmoothedFrameCostMilliseconds:
@@ -492,6 +502,9 @@ internal sealed class D3D11MirrorRenderer : IDisposable
 
         try
         {
+            UpdatePointerState(
+                frameInfo);
+
             if (desktopResource is null)
             {
                 return false;
@@ -560,41 +573,388 @@ internal sealed class D3D11MirrorRenderer : IDisposable
                 _frameTexture);
     }
 
+    private void UpdatePointerState(
+        OutduplFrameInfo frameInfo)
+    {
+        if (frameInfo.LastMouseUpdateTime != 0)
+        {
+            _pointerVisible =
+                frameInfo.PointerPosition.Visible;
+
+            if (_pointerVisible)
+            {
+                _pointerX =
+                    frameInfo.PointerPosition.Position.X;
+
+                _pointerY =
+                    frameInfo.PointerPosition.Position.Y;
+            }
+        }
+
+        if (frameInfo.PointerShapeBufferSize == 0)
+        {
+            return;
+        }
+
+        var requiredSize =
+            checked(
+                (int)frameInfo.PointerShapeBufferSize);
+
+        if (_pointerShapeBuffer is null ||
+            _pointerShapeBuffer.Length < requiredSize)
+        {
+            _pointerShapeBuffer =
+                new byte[requiredSize];
+        }
+
+        var pinned =
+            GCHandle.Alloc(
+                _pointerShapeBuffer,
+                GCHandleType.Pinned);
+
+        try
+        {
+            _duplication!.GetFramePointerShape(
+                checked((uint)_pointerShapeBuffer.Length),
+                pinned.AddrOfPinnedObject(),
+                out _,
+                out OutduplPointerShapeInfo shapeInfo);
+
+            BuildPointerTexture(
+                _pointerShapeBuffer,
+                shapeInfo);
+
+            _pointerShapeUpdates++;
+        }
+        finally
+        {
+            pinned.Free();
+        }
+    }
+
+    private void BuildPointerTexture(
+        byte[] source,
+        OutduplPointerShapeInfo info)
+    {
+        var type =
+            (int)info.Type;
+
+        var width =
+            checked((int)info.Width);
+
+        var encodedHeight =
+            checked((int)info.Height);
+
+        var height =
+            type == PointerShapeMonochrome
+                ? encodedHeight / 2
+                : encodedHeight;
+
+        var pitch =
+            checked((int)info.Pitch);
+
+        if (width <= 0 ||
+            height <= 0 ||
+            pitch <= 0)
+        {
+            return;
+        }
+
+        var bgra =
+            type switch
+            {
+                PointerShapeColor =>
+                    CopyColorPointer(
+                        source,
+                        width,
+                        height,
+                        pitch),
+
+                PointerShapeMonochrome =>
+                    ConvertMonochromePointer(
+                        source,
+                        width,
+                        height,
+                        pitch),
+
+                PointerShapeMaskedColor =>
+                    ConvertMaskedColorPointer(
+                        source,
+                        width,
+                        height,
+                        pitch),
+
+                _ =>
+                    null
+            };
+
+        if (bgra is null)
+        {
+            return;
+        }
+
+        var description =
+            new Texture2DDescription
+            {
+                Width =
+                    checked((uint)width),
+
+                Height =
+                    checked((uint)height),
+
+                MipLevels = 1,
+                ArraySize = 1,
+
+                Format =
+                    Format.B8G8R8A8_UNorm,
+
+                SampleDescription =
+                    new SampleDescription(
+                        1,
+                        0),
+
+                Usage =
+                    ResourceUsage.Default,
+
+                BindFlags =
+                    BindFlags.ShaderResource,
+
+                CPUAccessFlags =
+                    CpuAccessFlags.None,
+
+                MiscFlags =
+                    ResourceOptionFlags.None
+            };
+
+        var pinned =
+            GCHandle.Alloc(
+                bgra,
+                GCHandleType.Pinned);
+
+        try
+        {
+            var data =
+                new SubresourceData(
+                    pinned.AddrOfPinnedObject(),
+                    checked((uint)(width * 4)));
+
+            var newTexture =
+                _device!.CreateTexture2D(
+                    description,
+                    new[]
+                    {
+                        data
+                    });
+
+            var newView =
+                _device.CreateShaderResourceView(
+                    newTexture);
+
+            _cursorView?.Dispose();
+            _cursorTexture?.Dispose();
+
+            _cursorTexture =
+                newTexture;
+
+            _cursorView =
+                newView;
+
+            _cursorNativeWidth =
+                width;
+
+            _cursorNativeHeight =
+                height;
+        }
+        finally
+        {
+            pinned.Free();
+        }
+    }
+
+    private static byte[] CopyColorPointer(
+        byte[] source,
+        int width,
+        int height,
+        int pitch)
+    {
+        var rowBytes =
+            checked(width * 4);
+
+        var output =
+            new byte[
+                checked(
+                    rowBytes *
+                    height)];
+
+        for (var row = 0;
+             row < height;
+             row++)
+        {
+            Buffer.BlockCopy(
+                source,
+                row * pitch,
+                output,
+                row * rowBytes,
+                rowBytes);
+        }
+
+        return output;
+    }
+
+    private static byte[] ConvertMaskedColorPointer(
+        byte[] source,
+        int width,
+        int height,
+        int pitch)
+    {
+        var output =
+            new byte[
+                checked(
+                    width *
+                    height *
+                    4)];
+
+        for (var y = 0;
+             y < height;
+             y++)
+        {
+            for (var x = 0;
+                 x < width;
+                 x++)
+            {
+                var sourceOffset =
+                    y * pitch +
+                    x * 4;
+
+                var destinationOffset =
+                    (y * width + x) *
+                    4;
+
+                output[destinationOffset] =
+                    source[sourceOffset];
+
+                output[destinationOffset + 1] =
+                    source[sourceOffset + 1];
+
+                output[destinationOffset + 2] =
+                    source[sourceOffset + 2];
+
+                // MASKED_COLOR XOR pixels are uncommon for the modern
+                // Windows cursor set. Keep the first prototype opaque here;
+                // the important v0.21 path is frame-synchronized position
+                // and visibility without a second GetCursorInfo cursor.
+                output[destinationOffset + 3] =
+                    255;
+            }
+        }
+
+        return output;
+    }
+
+    private static byte[] ConvertMonochromePointer(
+        byte[] source,
+        int width,
+        int height,
+        int pitch)
+    {
+        var output =
+            new byte[
+                checked(
+                    width *
+                    height *
+                    4)];
+
+        var xorOffset =
+            checked(
+                height *
+                pitch);
+
+        for (var y = 0;
+             y < height;
+             y++)
+        {
+            for (var x = 0;
+                 x < width;
+                 x++)
+            {
+                var bytePosition =
+                    x / 8;
+
+                var bit =
+                    7 -
+                    (x % 8);
+
+                var andBit =
+                    (source[
+                         y * pitch +
+                         bytePosition] >> bit) &
+                    1;
+
+                var xorBit =
+                    (source[
+                         xorOffset +
+                         y * pitch +
+                         bytePosition] >> bit) &
+                    1;
+
+                var destinationOffset =
+                    (y * width + x) *
+                    4;
+
+                switch ((andBit, xorBit))
+                {
+                    case (0, 0):
+                        output[destinationOffset + 3] =
+                            255;
+                        break;
+
+                    case (0, 1):
+                        output[destinationOffset] =
+                            255;
+
+                        output[destinationOffset + 1] =
+                            255;
+
+                        output[destinationOffset + 2] =
+                            255;
+
+                        output[destinationOffset + 3] =
+                            255;
+                        break;
+
+                    case (1, 0):
+                        output[destinationOffset + 3] =
+                            0;
+                        break;
+
+                    default:
+                        output[destinationOffset] =
+                            255;
+
+                        output[destinationOffset + 1] =
+                            255;
+
+                        output[destinationOffset + 2] =
+                            255;
+
+                        output[destinationOffset + 3] =
+                            255;
+                        break;
+                }
+            }
+        }
+
+        return output;
+    }
+
     private CursorConstants BuildCursorConstants(
         int destinationWidth,
         int destinationHeight)
     {
-        var cursorInfo =
-            new CursorInfo
-            {
-                Size =
-                    checked(
-                        (uint)Marshal.SizeOf<CursorInfo>())
-            };
-
-        if (!NativeMethods.GetCursorInfo(
-                ref cursorInfo) ||
-            (cursorInfo.Flags & CursorShowing) == 0 ||
-            cursorInfo.Cursor == IntPtr.Zero)
-        {
-            return CursorConstants.Hidden;
-        }
-
-        var cursorX =
-            cursorInfo.ScreenPosition.X;
-        var cursorY =
-            cursorInfo.ScreenPosition.Y;
-
-        if (cursorX < _sourceLeft ||
-            cursorX >= _sourceLeft + _sourceWidth ||
-            cursorY < _sourceTop ||
-            cursorY >= _sourceTop + _sourceHeight)
-        {
-            return CursorConstants.Hidden;
-        }
-
-        if (!EnsureCursorTexture(
-                cursorInfo.Cursor))
+        if (!_pointerVisible ||
+            _cursorView is null ||
+            _cursorNativeWidth <= 0 ||
+            _cursorNativeHeight <= 0)
         {
             return CursorConstants.Hidden;
         }
@@ -602,24 +962,23 @@ internal sealed class D3D11MirrorRenderer : IDisposable
         var scaleX =
             destinationWidth /
             (double)_sourceWidth;
+
         var scaleY =
             destinationHeight /
             (double)_sourceHeight;
 
         var destinationX =
-            (cursorX - _sourceLeft) *
-            scaleX -
-            _cursorHotspotX *
+            _pointerX *
             scaleX;
+
         var destinationY =
-            (cursorY - _sourceTop) *
-            scaleY -
-            _cursorHotspotY *
+            _pointerY *
             scaleY;
 
         var drawWidth =
             _cursorNativeWidth *
             scaleX;
+
         var drawHeight =
             _cursorNativeHeight *
             scaleY;
@@ -632,258 +991,6 @@ internal sealed class D3D11MirrorRenderer : IDisposable
                 (float)drawHeight),
             1.0f,
             Vector3.Zero);
-    }
-
-    private bool EnsureCursorTexture(
-        IntPtr cursorHandle)
-    {
-        var now =
-            Stopwatch.GetTimestamp();
-
-        var refreshElapsedMilliseconds =
-            _lastCursorTextureRefreshTimestamp == 0
-                ? double.MaxValue
-                : (now -
-                   _lastCursorTextureRefreshTimestamp) *
-                  1000.0 /
-                  Stopwatch.Frequency;
-
-        if (_cursorView is not null &&
-            cursorHandle == _lastCursorHandle &&
-            refreshElapsedMilliseconds <
-                CursorTextureRefreshMilliseconds)
-        {
-            return true;
-        }
-
-        if (!TryCaptureCursorBitmap(
-                cursorHandle,
-                out var pixels,
-                out var width,
-                out var height,
-                out var hotspotX,
-                out var hotspotY))
-        {
-            return _cursorView is not null &&
-                   cursorHandle ==
-                       _lastCursorHandle;
-        }
-
-        var newTexture =
-            _device!.CreateTexture2D(
-                pixels,
-                Format.B8G8R8A8_UNorm,
-                checked((uint)width),
-                checked((uint)height),
-                bindFlags:
-                    BindFlags.ShaderResource,
-                usage:
-                    ResourceUsage.Immutable);
-
-        var newView =
-            _device.CreateShaderResourceView(
-                newTexture);
-
-        _cursorView?.Dispose();
-        _cursorTexture?.Dispose();
-
-        _cursorTexture =
-            newTexture;
-        _cursorView =
-            newView;
-        _lastCursorHandle =
-            cursorHandle;
-        _cursorNativeWidth =
-            width;
-        _cursorNativeHeight =
-            height;
-        _cursorHotspotX =
-            hotspotX;
-        _cursorHotspotY =
-            hotspotY;
-        _lastCursorTextureRefreshTimestamp =
-            now;
-
-        return true;
-    }
-
-    private static bool TryCaptureCursorBitmap(
-        IntPtr cursorHandle,
-        out byte[] pixels,
-        out int width,
-        out int height,
-        out int hotspotX,
-        out int hotspotY)
-    {
-        pixels = [];
-        width = 0;
-        height = 0;
-        hotspotX = 0;
-        hotspotY = 0;
-
-        if (!NativeMethods.GetIconInfo(
-                cursorHandle,
-                out var iconInfo))
-        {
-            return false;
-        }
-
-        try
-        {
-            width = 32;
-            height = 32;
-
-            var bitmapInfo =
-                new BitmapInfo();
-
-            if (iconInfo.ColorBitmap != IntPtr.Zero &&
-                NativeMethods.GetObject(
-                    iconInfo.ColorBitmap,
-                    Marshal.SizeOf<BitmapInfo>(),
-                    ref bitmapInfo) > 0)
-            {
-                width =
-                    Math.Max(
-                        1,
-                        bitmapInfo.Width);
-                height =
-                    Math.Max(
-                        1,
-                        Math.Abs(
-                            bitmapInfo.Height));
-            }
-            else if (
-                iconInfo.MaskBitmap != IntPtr.Zero &&
-                NativeMethods.GetObject(
-                    iconInfo.MaskBitmap,
-                    Marshal.SizeOf<BitmapInfo>(),
-                    ref bitmapInfo) > 0)
-            {
-                width =
-                    Math.Max(
-                        1,
-                        bitmapInfo.Width);
-                height =
-                    Math.Max(
-                        1,
-                        Math.Abs(
-                            bitmapInfo.Height) /
-                        2);
-            }
-
-            hotspotX =
-                checked(
-                    (int)iconInfo.HotspotX);
-            hotspotY =
-                checked(
-                    (int)iconInfo.HotspotY);
-
-            using var bitmap =
-                new Bitmap(
-                    width,
-                    height,
-                    PixelFormat.Format32bppPArgb);
-
-            using (var graphics =
-                   Graphics.FromImage(
-                       bitmap))
-            {
-                graphics.Clear(
-                    System.Drawing.Color.Transparent);
-
-                var deviceContext =
-                    graphics.GetHdc();
-
-                try
-                {
-                    if (!NativeMethods.DrawIconEx(
-                            deviceContext,
-                            0,
-                            0,
-                            cursorHandle,
-                            width,
-                            height,
-                            0,
-                            IntPtr.Zero,
-                            DiNormal))
-                    {
-                        return false;
-                    }
-                }
-                finally
-                {
-                    graphics.ReleaseHdc(
-                        deviceContext);
-                }
-            }
-
-            var rectangle =
-                new Rectangle(
-                    0,
-                    0,
-                    width,
-                    height);
-
-            var bitmapData =
-                bitmap.LockBits(
-                    rectangle,
-                    ImageLockMode.ReadOnly,
-                    PixelFormat.Format32bppPArgb);
-
-            try
-            {
-                var rowBytes =
-                    checked(
-                        width * 4);
-
-                pixels =
-                    new byte[
-                        checked(
-                            rowBytes *
-                            height)];
-
-                for (var row = 0;
-                     row < height;
-                     row++)
-                {
-                    var source =
-                        IntPtr.Add(
-                            bitmapData.Scan0,
-                            row *
-                            bitmapData.Stride);
-
-                    Marshal.Copy(
-                        source,
-                        pixels,
-                        row *
-                        rowBytes,
-                        rowBytes);
-                }
-            }
-            finally
-            {
-                bitmap.UnlockBits(
-                    bitmapData);
-            }
-
-            return true;
-        }
-        finally
-        {
-            if (iconInfo.MaskBitmap !=
-                IntPtr.Zero)
-            {
-                NativeMethods.DeleteObject(
-                    iconInfo.MaskBitmap);
-            }
-
-            if (iconInfo.ColorBitmap !=
-                IntPtr.Zero)
-            {
-                NativeMethods.DeleteObject(
-                    iconInfo.ColorBitmap);
-            }
-        }
     }
 
     private void UpdateCursorConstants(
@@ -1028,91 +1135,5 @@ internal sealed class D3D11MirrorRenderer : IDisposable
         public readonly Vector3 Padding;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        public int X;
-        public int Y;
-    }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct CursorInfo
-    {
-        public uint Size;
-        public uint Flags;
-        public IntPtr Cursor;
-        public NativePoint ScreenPosition;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct IconInfo
-    {
-        [MarshalAs(UnmanagedType.Bool)]
-        public bool IsIcon;
-
-        public uint HotspotX;
-        public uint HotspotY;
-        public IntPtr MaskBitmap;
-        public IntPtr ColorBitmap;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BitmapInfo
-    {
-        public int Type;
-        public int Width;
-        public int Height;
-        public int WidthBytes;
-        public ushort Planes;
-        public ushort BitsPixel;
-        public IntPtr Bits;
-    }
-
-    private static class NativeMethods
-    {
-        [DllImport(
-            "user32.dll",
-            SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool GetCursorInfo(
-            ref CursorInfo cursorInfo);
-
-        [DllImport(
-            "user32.dll",
-            SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool GetIconInfo(
-            IntPtr icon,
-            out IconInfo iconInfo);
-
-        [DllImport(
-            "user32.dll",
-            SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool DrawIconEx(
-            IntPtr deviceContext,
-            int x,
-            int y,
-            IntPtr icon,
-            int width,
-            int height,
-            uint step,
-            IntPtr brush,
-            uint flags);
-
-        [DllImport(
-            "gdi32.dll",
-            SetLastError = true)]
-        internal static extern int GetObject(
-            IntPtr gdiObject,
-            int bufferSize,
-            ref BitmapInfo bitmap);
-
-        [DllImport(
-            "gdi32.dll",
-            SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool DeleteObject(
-            IntPtr gdiObject);
-    }
 }

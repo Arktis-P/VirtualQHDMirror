@@ -38,7 +38,7 @@ internal sealed class MirrorSessionForm : Form
     private readonly DisplayEndpoint _source;
     private readonly DisplayEndpoint _destination;
     private readonly GdiMirrorRenderer _gdiRenderer;
-    private D3D11MirrorRenderer? _d3dRenderer;
+    private D3D11PresentationLoop? _d3dLoop;
     private readonly WindowsPointerInjector _pointer;
     private readonly PortalInputController _portal;
     private readonly System.Windows.Forms.Timer _frameTimer;
@@ -367,9 +367,22 @@ internal sealed class MirrorSessionForm : Form
     {
         AdjustInterval();
 
-        if (_usingD3D11 &&
-            _portal.IsActive)
+        if (_usingD3D11)
         {
+            if (!EnsureD3D11Healthy())
+            {
+                DrawFrame();
+                return;
+            }
+
+            if (_portal.IsActive)
+            {
+                MaybeLogD3D11Stats();
+                return;
+            }
+
+            _d3dLoop?.RequestFrame();
+            MaybeLogD3D11Stats();
             return;
         }
 
@@ -399,13 +412,26 @@ internal sealed class MirrorSessionForm : Form
             PortalUpdateState.Active)
         {
             _cursorTimer.Stop();
+
+            if (_usingD3D11)
+            {
+                _d3dLoop?.SetContinuous(
+                    false);
+            }
+
             DrawFrame();
             return;
         }
 
         if (_usingD3D11)
         {
-            DrawFrame();
+            if (!EnsureD3D11Healthy())
+            {
+                DrawFrame();
+                return;
+            }
+
+            MaybeLogD3D11Stats();
             return;
         }
 
@@ -440,38 +466,14 @@ internal sealed class MirrorSessionForm : Form
             return;
         }
 
-        if (_usingD3D11 &&
-            _d3dRenderer is not null)
+        if (_usingD3D11)
         {
-            try
+            if (EnsureD3D11Healthy())
             {
-                var d3dResult =
-                    _d3dRenderer.RenderFrame(
-                        ClientSize.Width,
-                        ClientSize.Height);
-
+                _d3dLoop?.RequestFrame();
+                MaybeLogD3D11Stats();
                 _consecutiveRenderFailures = 0;
-                MaybeLogD3D11Stats(
-                    d3dResult);
                 return;
-            }
-            catch (Exception exception)
-            {
-                SessionDiagnostics.Write(
-                    $"D3D11 presentation failed; switching to GDI fallback: {exception}");
-
-                try
-                {
-                    SwitchToGdiFallback();
-                }
-                catch (Exception fallbackException)
-                {
-                    SessionDiagnostics.Write(
-                        $"GDI fallback activation failed: {fallbackException}");
-
-                    RegisterRenderFailure();
-                    return;
-                }
             }
         }
 
@@ -587,6 +589,12 @@ internal sealed class MirrorSessionForm : Form
                 interval;
         }
 
+        if (_usingD3D11)
+        {
+            _d3dLoop?.SetContinuous(
+                true);
+        }
+
         if (!_cursorTimer.Enabled)
         {
             _cursorTimer.Start();
@@ -606,38 +614,47 @@ internal sealed class MirrorSessionForm : Form
             return false;
         }
 
-        D3D11MirrorRenderer? renderer =
+        D3D11PresentationLoop? loop =
             null;
 
         try
         {
-            renderer =
-                new D3D11MirrorRenderer(
+            loop =
+                new D3D11PresentationLoop(
                     _source.SourceName,
                     _source.X,
                     _source.Y,
                     _source.Width,
-                    _source.Height);
+                    _source.Height,
+                    Handle,
+                    ClientSize.Width,
+                    ClientSize.Height);
 
-            renderer.AttachDestination(
-                Handle,
-                ClientSize.Width,
-                ClientSize.Height);
+            if (!loop.Start(
+                    TimeSpan.FromSeconds(3),
+                    out var startupError))
+            {
+                throw startupError ??
+                    new InvalidOperationException(
+                        "The D3D11 presentation loop could not start.");
+            }
 
-            _d3dRenderer =
-                renderer;
+            _d3dLoop =
+                loop;
 
             _usingD3D11 =
                 true;
 
+            _d3dLoop.RequestFrame();
+
             SessionDiagnostics.Write(
-                "D3D11 Desktop Duplication renderer initialized; swap-chain presentation is VSync paced.");
+                "D3D11 Desktop Duplication presentation thread initialized; DXGI pointer metadata is used and MaximumFrameLatency=1.");
 
             return true;
         }
         catch (Exception exception)
         {
-            renderer?.Dispose();
+            loop?.Dispose();
 
             SessionDiagnostics.Write(
                 $"D3D11 renderer unavailable; retaining GDI fallback: {exception}");
@@ -646,11 +663,48 @@ internal sealed class MirrorSessionForm : Form
         }
     }
 
+    private bool EnsureD3D11Healthy()
+    {
+        if (!_usingD3D11)
+        {
+            return false;
+        }
+
+        var loop =
+            _d3dLoop;
+
+        if (loop is not null &&
+            !loop.IsFaulted)
+        {
+            return true;
+        }
+
+        var error =
+            loop?.LastError;
+
+        SessionDiagnostics.Write(
+            $"D3D11 presentation thread failed; switching to GDI fallback: {error}");
+
+        try
+        {
+            SwitchToGdiFallback();
+        }
+        catch (Exception fallbackException)
+        {
+            SessionDiagnostics.Write(
+                $"GDI fallback activation failed: {fallbackException}");
+
+            RegisterRenderFailure();
+        }
+
+        return false;
+    }
+
     private void SwitchToGdiFallback()
     {
         try
         {
-            _d3dRenderer?.Dispose();
+            _d3dLoop?.Dispose();
         }
         catch (Exception exception)
         {
@@ -658,7 +712,7 @@ internal sealed class MirrorSessionForm : Form
                 $"D3D11 cleanup during fallback reported: {exception.Message}");
         }
 
-        _d3dRenderer =
+        _d3dLoop =
             null;
 
         _usingD3D11 =
@@ -677,9 +731,16 @@ internal sealed class MirrorSessionForm : Form
             "GDI presentation fallback is active.");
     }
 
-    private void MaybeLogD3D11Stats(
-        D3D11RenderFrameResult result)
+    private void MaybeLogD3D11Stats()
     {
+        var loop =
+            _d3dLoop;
+
+        if (loop is null)
+        {
+            return;
+        }
+
         var now =
             DateTimeOffset.UtcNow;
 
@@ -692,6 +753,9 @@ internal sealed class MirrorSessionForm : Form
         _lastD3DStats =
             now;
 
+        var stats =
+            loop.Stats;
+
         using var process =
             Process.GetCurrentProcess();
 
@@ -701,7 +765,7 @@ internal sealed class MirrorSessionForm : Form
                 0);
 
         SessionDiagnostics.Write(
-            $"D3D11 stats: presents={_d3dRenderer?.PresentedFrames ?? 0}; desktopFrames={_d3dRenderer?.DesktopFrames ?? 0}; acquireTimeouts={_d3dRenderer?.AcquireTimeouts ?? 0}; frameUpdated={result.DesktopFrameUpdated}; frameMs={result.FrameCostMilliseconds:F2}; smoothMs={result.SmoothedFrameCostMilliseconds:F2}; privateMB={process.PrivateMemorySize64 / 1048576.0:F1}; workingMB={process.WorkingSet64 / 1048576.0:F1}; handles={process.HandleCount}; gdiObjects={gdiObjects}.");
+            $"D3D11 stats: presents={stats.PresentedFrames}; desktopFrames={stats.DesktopFrames}; acquireTimeouts={stats.AcquireTimeouts}; pointerShapes={stats.PointerShapeUpdates}; pointerVisible={stats.PointerVisible}; frameUpdated={stats.LastDesktopFrameUpdated}; frameMs={stats.FrameCostMilliseconds:F2}; smoothMs={stats.SmoothedFrameCostMilliseconds:F2}; privateMB={process.PrivateMemorySize64 / 1048576.0:F1}; workingMB={process.WorkingSet64 / 1048576.0:F1}; handles={process.HandleCount}; gdiObjects={gdiObjects}.");
     }
 
     private void ApplyDwmIsolation()
@@ -755,14 +819,14 @@ internal sealed class MirrorSessionForm : Form
 
         try
         {
-            _d3dRenderer?.Dispose();
+            _d3dLoop?.Dispose();
         }
         catch
         {
             // Renderer cleanup must not block session shutdown.
         }
 
-        _d3dRenderer =
+        _d3dLoop =
             null;
 
         _gdiRenderer.Dispose();

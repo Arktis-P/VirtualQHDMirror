@@ -70,6 +70,20 @@ v0.21 launcher: `run-v021.cmd → run-v021.vbs → hidden run-v021.ps1`. Keep th
 
 Remote editor limitation: Windows build/runtime validation is still required before M1-A is considered accepted. Do not remove the GDI fallback.
 
+### M1-B — device-feedback cursor correction
+
+Implemented after the first v0.21 device test:
+
+- removed D3D11 cursor placement based on asynchronous `GetCursorInfo`,
+- use Desktop Duplication pointer position/visibility and pointer-shape updates,
+- do not composite an extra cursor when DXGI reports the separate hardware pointer as not visible,
+- moved D3D11 acquisition/composition/`Present(1)` to a dedicated presentation thread,
+- set DXGI maximum frame latency to 1,
+- keep Portal/input handling on the WinForms UI thread,
+- retain automatic GDI fallback.
+
+This checkpoint specifically targets the observed double cursor and the remaining small late-following feel.
+
 ## Version policy
 
 Next version is `v0.21`. Continue sequentially (`v0.22`, `v0.23`, ...) unless there is an explicit reason to make a larger version jump.

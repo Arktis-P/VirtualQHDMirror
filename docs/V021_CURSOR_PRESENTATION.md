@@ -68,6 +68,21 @@ The prototype uses Vortice.Windows packages for Direct3D 11, DXGI, and D3DCompil
 
 `run-v020.cmd`, `run-v020.vbs`, and `run-v020.ps1` remain unchanged as the v0.20 launcher baseline. v0.21 development/testing uses `run-v021.cmd → run-v021.vbs → run-v021.ps1` so launcher labels and logs match the active version.
 
+## M1-B — pointer synchronization and input-thread decoupling
+
+The first device test exposed two issues: a duplicated cursor image and a small trailing/late-following feel.
+
+The correction is:
+
+- Cursor visibility, top-left position, and shape now come from the same `DXGI_OUTDUPL_FRAME_INFO` / `GetFramePointerShape` stream as the captured frame. `GetCursorInfo` is no longer used for D3D11 cursor placement.
+- A pointer is composited only when Desktop Duplication reports `PointerPosition.Visible`. This avoids drawing a second software cursor when DXGI reports no separate hardware pointer.
+- The D3D11 immediate context, Desktop Duplication object, swap chain, and `Present(1)` are owned by a dedicated presentation thread.
+- WinForms mouse/Portal input no longer waits for VSync. During Portal activity the presentation thread runs continuously and is naturally paced by `Present(1)`; outside Portal activity the existing adaptive timer only signals the render thread.
+- `IDXGIDevice1.MaximumFrameLatency` is set to `1` to prevent additional queued-frame latency.
+- The GDI fallback remains on the UI thread and is unchanged.
+
+For common color pointers, the DXGI shape is uploaded directly as BGRA. Monochrome and masked-color shapes are converted to a usable BGRA approximation for this prototype; exact XOR semantics remain a later polish item if they are observable in real applications.
+
 ## Validation status
 
 Static/API review is complete for this checkpoint. A Windows build and runtime validation could not be executed from the current remote editing environment.
@@ -82,8 +97,8 @@ dotnet build .\VirtualQHDMirror.sln --configuration Debug --nologo
 
 Runtime checks:
 
-1. Confirm the session log says `Presentation backend=D3D11/DesktopDuplication/VSync`.
-2. Move the pointer slowly and quickly across the mirrored destination and compare stepping against v0.20.
+1. Confirm the session log says `Presentation backend=D3D11/DesktopDuplication/VSync` and that later stats show `pointerShapes` / `pointerVisible` values.
+2. Confirm only one cursor is visible, then move it slowly and quickly across the mirrored destination and compare both stepping and trailing latency against v0.20.
 3. Verify text/link/resize cursor shapes.
 4. Verify click/right-click/middle/XButton, wheel, drag, taskbar, title-bar, and Unity-window interaction.
 5. Force `VQM_RENDER_BACKEND=gdi` and confirm the v0.20 fallback behavior still works.
