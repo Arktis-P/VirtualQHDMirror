@@ -187,22 +187,17 @@ The GUI launcher now checks for an already-running VirtualQHDMirror setup proces
 - if the process exists but has no usable window yet, the launcher reports that state instead of attempting a conflicting build,
 - dotnet CLI output is forced to English for redirected build logs/error messages to avoid mixed-codepage mojibake.
 
+## Current v0.20 cursor candidate: native pointer + cursor-only refresh
 
-## Event-driven Portal precision assist
+Fast-movement testing showed that modifying the real source pointer introduced additional perceived lag. Pointer correction is therefore disabled.
 
-The final v0.20 Portal refinement does not raise the screen render rate. Instead it adds a low-cost precision assist that is active only while Portal owns the source pointer.
+The current candidate keeps the actual Windows pointer fully native and separates only cursor presentation from full-screen rendering:
 
-Implementation:
+- full-screen mirror frame: Adaptive 16 / 33 / 66 ms (~60 / 30 / 15 Hz),
+- Portal pointer/edge polling: 8 ms target (~125 Hz),
+- cursor-only refresh: restore only the previous software-cursor rectangle and draw the cursor at its current source position,
+- if the cursor placement has not changed, the cursor-only tick performs no dirty-region StretchBlt,
+- no pointer gain, mouse acceleration override, or corrective SetCursorPos is used by the active Portal path,
+- if cursor-only refresh fails, that optimization is disabled while Portal polling and normal full-frame rendering continue.
 
-- a `WH_MOUSE_LL` mouse-move hook is installed only for the active Portal,
-- it observes the screen-space pointer position after normal Windows mouse sensitivity/acceleration has already been applied,
-- source deltas up to 2 px receive the full source/destination scale compensation,
-- compensation fades smoothly to 1.0× between 2 px and 12 px of movement,
-- movement at 12 px or above is unchanged,
-- fractional compensation is retained as residual instead of being discarded by integer rounding,
-- all VirtualQHDMirror `SendInput` events carry a private `dwExtraInfo` marker and are ignored by the precision hook,
-- the small corrective position adjustment uses direct `SetCursorPos` rather than another virtual-desktop `SendInput` normalization pass; the hook tracks the exact expected synthetic point so that adjustment is not amplified again,
-- the hook also ignores ordinary injected low-level mouse events to prevent feedback loops,
-- Portal exit immediately removes the hook and clears residual state.
-
-For the current 2560×1440 → 1920×1080 profile, the maximum low-speed gain is 4/3. This does not change Windows mouse settings and does not add continuous 100/120 Hz full-frame rendering; CPU work is proportional only to actual mouse-move events while Portal is active.
+This avoids the bandwidth cost of 100/120 Hz full-screen QHD→FHD StretchBlt while reducing the visible software-cursor stepping that remains at 60 Hz.
