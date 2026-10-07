@@ -131,13 +131,16 @@ internal static class Program
 
         if (!values.TryGetValue(
                 "--config",
-                out configurationPath) ||
+                out var parsedConfigurationPath) ||
             !values.TryGetValue(
                 "--device-instance",
-                out deviceInstanceId))
+                out var parsedDeviceInstanceId))
         {
             return false;
         }
+
+        configurationPath = parsedConfigurationPath;
+        deviceInstanceId = parsedDeviceInstanceId;
 
         if (values.TryGetValue(
                 "--monitor-count",
