@@ -10,7 +10,11 @@ public partial class MainWindow : Window
     private readonly DisplayDiscoveryService _displayDiscovery = new();
     private readonly DriverEnvironmentProbe _driverProbe = new();
     private readonly DriverConfigurationPlanner _driverConfigurationPlanner = new();
+    private readonly DriverPlanElevatedRunner _driverPlanRunner = new();
     private readonly LegacyMirrorProcessController _mirrorController = new();
+
+    private DriverConfigurationPlan? _currentDriverPlan;
+    private bool _driverPlanApplyInProgress;
 
     public MainWindow()
     {
@@ -94,6 +98,88 @@ public partial class MainWindow : Window
             MessageBoxImage.Information);
     }
 
+    private async void ApplyDriverPlan_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var plan = _currentDriverPlan;
+
+        if (plan is null ||
+            plan.State is DriverConfigurationPlanState.NotApplicable or
+                DriverConfigurationPlanState.NoChangeRequired or
+                DriverConfigurationPlanState.Blocked)
+        {
+            return;
+        }
+
+        if (_mirrorController.IsRunning)
+        {
+            MessageBox.Show(
+                this,
+                "Stop the active mirror session before changing or restarting the virtual display driver.",
+                "VirtualQHDMirror",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var operationText = plan.RequiresConfigurationWrite
+            ? $"increase the virtual monitor count from {plan.ConfiguredMonitorCount} to {plan.DesiredMonitorCount} and restart the IDD device"
+            : "restart the detected IDD device without changing the configuration";
+
+        var confirmed = MessageBox.Show(
+            this,
+            $"VirtualQHDMirror will {operationText}.\n\nWindows will request administrator approval and the virtual display topology may briefly disappear and reconnect. Continue?",
+            "Apply virtual display driver plan",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirmed != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _driverPlanApplyInProgress = true;
+        UpdateMirrorControls();
+
+        var result = await _driverPlanRunner.ApplyAsync(
+            plan);
+
+        _driverPlanApplyInProgress = false;
+
+        if (!result.Success)
+        {
+            MessageBox.Show(
+                this,
+                result.Message,
+                result.Cancelled
+                    ? "Driver change cancelled"
+                    : "Driver change failed",
+                MessageBoxButton.OK,
+                result.Cancelled
+                    ? MessageBoxImage.Information
+                    : MessageBoxImage.Error);
+
+            UpdateMirrorControls();
+            return;
+        }
+
+        DriverPlanSummaryText.Text =
+            "Driver change completed. Waiting for Windows display topology to settle...";
+
+        await Task.Delay(1500);
+
+        _mirrorController.DetectExistingSession();
+        RefreshDisplays();
+
+        MessageBox.Show(
+            this,
+            result.Message,
+            "Driver change completed",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
     private void RefreshDisplays()
     {
         var previousVirtualId =
@@ -111,6 +197,8 @@ public partial class MainWindow : Window
 
             var driverPlan =
                 _driverConfigurationPlanner.BuildFullCoveragePlan(driverReport);
+
+            _currentDriverPlan = driverPlan;
 
             DriverSummaryText.Text = driverReport.Summary;
             CapacitySummaryText.Text = driverReport.Requirement.Summary;
@@ -183,6 +271,7 @@ public partial class MainWindow : Window
             PhysicalSummaryText.Text = "Display discovery failed.";
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
             CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
+            _currentDriverPlan = null;
             DriverPlanSummaryText.Text = "Driver configuration plan is unavailable.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
@@ -226,7 +315,43 @@ public partial class MainWindow : Window
         StopMirrorButton.IsEnabled = running;
         VirtualSourceComboBox.IsEnabled = !running && !multipleSessions;
         PhysicalDestinationComboBox.IsEnabled = !running && !multipleSessions;
-        RefreshButton.IsEnabled = !running;
+        RefreshButton.IsEnabled =
+            !running &&
+            !_driverPlanApplyInProgress;
+
+        var driverPlanCanApply =
+            _currentDriverPlan is
+            {
+                CanProceed: true,
+                RequiresElevation: true
+            } plan &&
+            plan.State != DriverConfigurationPlanState.NoChangeRequired;
+
+        ApplyDriverPlanButton.IsEnabled =
+            !running &&
+            !multipleSessions &&
+            !_driverPlanApplyInProgress &&
+            driverPlanCanApply;
+
+        ApplyDriverPlanButton.Content =
+            _driverPlanApplyInProgress
+                ? "Applying..."
+                : _currentDriverPlan?.State switch
+                {
+                    DriverConfigurationPlanState.RestartRecommended =>
+                        "Restart virtual display",
+                    DriverConfigurationPlanState.ReadyToIncrease =>
+                        "Apply & restart driver",
+                    _ =>
+                        "Apply driver plan"
+                };
+
+        if (_driverPlanApplyInProgress)
+        {
+            MirrorStateText.Text =
+                "Applying virtual display driver changes with administrator approval. Do not start a mirror session until topology refresh completes.";
+            return;
+        }
 
         if (running)
         {

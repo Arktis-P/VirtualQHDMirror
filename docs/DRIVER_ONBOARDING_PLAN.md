@@ -181,3 +181,23 @@ Safety rules:
 The next privileged implementation should use the detected **device instance ID** and Windows' built-in `pnputil /restart-device <instance-id>` operation rather than Device Manager automation. PnPUtil device restart is available on supported modern Windows versions and requires elevation.
 
 The privileged write/restart helper is intentionally a separate next step; the normal VQM UI should not run elevated for routine mirroring.
+
+
+## Elevated compatibility helper
+
+The normal v0.20 WPF process remains non-elevated. Privileged compatibility-driver changes are delegated to `VirtualQHDMirror.ElevatedHelper.exe` only when a plan requires them.
+
+The helper is intentionally narrow:
+
+- accepts only the machine-configured `IDD_SAMPLE_DRIVER_CONFIG` path or `C:\IddSampleDriver\option.txt`,
+- accepts only `ROOT\IddSampleDriver\...` device instances during the current compatibility phase,
+- accepts monitor counts from 1 through 4,
+- re-validates that the config is readable and contains 2560×1440,
+- creates `option.txt.vqm.bak` before changing the first-line monitor count,
+- restarts only the exact detected instance with `pnputil /restart-device`,
+- restores the previous config when restart fails after a write,
+- never edits physical-monitor EDID or GraphicsDrivers registry state.
+
+The main UI disables Apply while a legacy mirror session is active. UAC is requested only for the helper process, not for routine VQM operation.
+
+Current development limitation: after the helper exits successfully, v0.20 waits briefly and re-runs display discovery. A later recovery phase should replace the fixed delay with an explicit display-topology change watcher and bounded convergence loop.

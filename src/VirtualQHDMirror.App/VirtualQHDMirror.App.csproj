@@ -10,5 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\VirtualQHDMirror.Core\VirtualQHDMirror.Core.csproj" />
     <ProjectReference Include="..\VirtualQHDMirror.DriverManager\VirtualQHDMirror.DriverManager.csproj" />
+    <ProjectReference Include="..\VirtualQHDMirror.ElevatedHelper\VirtualQHDMirror.ElevatedHelper.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
