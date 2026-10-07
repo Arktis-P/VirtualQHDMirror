@@ -66,6 +66,8 @@ Implemented for the first v0.21 checkpoint:
 
 Detailed design and validation gate: `docs/V021_CURSOR_PRESENTATION.md`.
 
+v0.21 launcher: `run-v021.cmd → run-v021.vbs → hidden run-v021.ps1`. Keep the existing `run-v020.*` files unchanged as the v0.20 launcher baseline.
+
 Remote editor limitation: Windows build/runtime validation is still required before M1-A is considered accepted. Do not remove the GDI fallback.
 
 ## Version policy

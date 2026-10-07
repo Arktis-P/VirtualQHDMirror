@@ -53,7 +53,8 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 
 - Stable runnable fallback: `archive/v0.14.1/`
 - Stable root entry point: `run.cmd`
-- Public-release development entry point: `run-v020.cmd`
+- v0.20 launcher baseline: `run-v020.cmd` (do not repurpose for v0.21)
+- Active v0.21 development entry point: `run-v021.cmd`
 - Public-release v0.20 baseline: `main` / `gpt/public-release-v0.20` (closed)
 - Active v0.21 development branch: `gpt/public-release-v0.21`
 - v0.21 cursor-presentation handoff: `docs/V021_HANDOFF.md`

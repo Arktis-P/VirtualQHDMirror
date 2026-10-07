@@ -789,7 +789,7 @@ internal sealed class D3D11MirrorRenderer : IDisposable
                        bitmap))
             {
                 graphics.Clear(
-                    Color.Transparent);
+                    System.Drawing.Color.Transparent);
 
                 var deviceContext =
                     graphics.GetHdc();

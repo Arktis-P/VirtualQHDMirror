@@ -64,6 +64,10 @@ Log path remains:
 
 The prototype uses Vortice.Windows packages for Direct3D 11, DXGI, and D3DCompiler bindings. The session project pins all three packages to 3.8.3 for this checkpoint.
 
+## Launcher separation
+
+`run-v020.cmd`, `run-v020.vbs`, and `run-v020.ps1` remain unchanged as the v0.20 launcher baseline. v0.21 development/testing uses `run-v021.cmd → run-v021.vbs → run-v021.ps1` so launcher labels and logs match the active version.
+
 ## Validation status
 
 Static/API review is complete for this checkpoint. A Windows build and runtime validation could not be executed from the current remote editing environment.
@@ -73,7 +77,7 @@ The required local gate is:
 ```powershell
 dotnet restore .\VirtualQHDMirror.sln
 dotnet build .\VirtualQHDMirror.sln --configuration Debug --nologo
-.\run-v020.cmd
+.\run-v021.cmd
 ```
 
 Runtime checks:
