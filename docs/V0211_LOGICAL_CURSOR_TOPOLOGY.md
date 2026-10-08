@@ -100,6 +100,19 @@ Logging is state-change based rather than per-frame, so long sessions should rem
 
 For the next reproduction, leave the session running until the unexpected 3→2 behavior occurs, then close VQM normally and preserve `native-session.log`. The important lines are the last `CursorDiag` entries before and after the unexpected transition.
 
+## Active clip recovery
+
+Diagnostics confirmed that the intermittent 3→2 leak is preceded by the active Portal clip being released from the backing-source rectangle to the full virtual desktop while `portal=True`.
+
+v0.21.1 now treats the Portal clip as owned state:
+
+- on each active Portal poll, query the current `ClipCursor` rectangle;
+- if it no longer matches the backing source, immediately restore the backing-source clip;
+- record the mismatch and recovery in `CursorDiag`;
+- do not interfere with normal Portal exit, because a normal exit resets Portal state before the next poll.
+
+This recovery is intentionally limited to active Portal sessions. It does not continuously reposition the pointer and does not change the rendering path.
+
 ## Validation
 
 Use `run-v0211.cmd`.

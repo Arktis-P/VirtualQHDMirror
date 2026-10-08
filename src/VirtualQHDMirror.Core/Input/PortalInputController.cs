@@ -162,6 +162,8 @@ public sealed class PortalInputController : IDisposable
             return PortalUpdateState.Inactive;
         }
 
+        RestoreSourceClipIfNeeded();
+
         if (!_pointer.TryGetCursorPosition(
                 out var sourcePoint))
         {
@@ -295,6 +297,38 @@ public sealed class PortalInputController : IDisposable
         _disposed = true;
     }
 
+    private void RestoreSourceClipIfNeeded()
+    {
+        if (!_pointer.TryGetClipRect(
+                out var currentClip))
+        {
+            Trace(
+                "active clip check unavailable.");
+            return;
+        }
+
+        if (currentClip ==
+            _geometry.Source)
+        {
+            return;
+        }
+
+        Trace(
+            $"active clip lost; expected={FormatRect(_geometry.Source)} actual={FormatRect(currentClip)}; restoring source clip.");
+
+        if (_pointer.ClipTo(
+                _geometry.Source))
+        {
+            Trace(
+                "active clip restored to backing source.");
+        }
+        else
+        {
+            Trace(
+                "active clip restore failed.");
+        }
+    }
+
     private bool MoveTopologyTransition(
         string reason,
         PixelPoint point)
@@ -336,6 +370,10 @@ public sealed class PortalInputController : IDisposable
     private static string FormatPoint(
         PixelPoint point) =>
         $"({point.X},{point.Y})";
+
+    private static string FormatRect(
+        PixelRect rect) =>
+        $"({rect.Left},{rect.Top}) {rect.Width}x{rect.Height}";
 
     private void ResetState()
     {
