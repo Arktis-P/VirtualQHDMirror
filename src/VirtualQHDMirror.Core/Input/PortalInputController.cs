@@ -14,7 +14,7 @@ public enum PortalUpdateState
 public sealed class PortalInputController : IDisposable
 {
     private readonly PortalInputGeometry _geometry;
-    private readonly IReadOnlyList<PixelRect> _activeMonitorRects;
+    private readonly IReadOnlyList<PixelRect> _logicalMonitorRects;
     private readonly WindowsPointerInjector _pointer;
 
     private PortalEdge _blockedEdge;
@@ -25,16 +25,16 @@ public sealed class PortalInputController : IDisposable
 
     public PortalInputController(
         PortalInputGeometry geometry,
-        IReadOnlyList<PixelRect> activeMonitorRects,
+        IReadOnlyList<PixelRect> logicalMonitorRects,
         WindowsPointerInjector? pointer = null)
     {
         _geometry = geometry ??
             throw new ArgumentNullException(
                 nameof(geometry));
 
-        _activeMonitorRects = activeMonitorRects ??
+        _logicalMonitorRects = logicalMonitorRects ??
             throw new ArgumentNullException(
-                nameof(activeMonitorRects));
+                nameof(logicalMonitorRects));
 
         _pointer = pointer ??
             new WindowsPointerInjector();
@@ -53,6 +53,40 @@ public sealed class PortalInputController : IDisposable
         EnsureNotDisposed();
         _lastDestinationLocal =
             destinationLocal;
+    }
+
+    public bool RedirectBackingSourceIfInactive()
+    {
+        EnsureNotDisposed();
+
+        if (IsActive ||
+            !_pointer.TryGetCursorPosition(
+                out var current) ||
+            !_geometry.IsSourcePoint(
+                current))
+        {
+            return false;
+        }
+
+        var destinationPoint =
+            _geometry.MapSourceToDestination(
+                current);
+
+        if (!_pointer.MoveAbsolute(
+                destinationPoint))
+        {
+            return false;
+        }
+
+        _lastDestinationLocal =
+            new PixelPoint(
+                destinationPoint.X -
+                    _geometry.Destination.Left,
+                destinationPoint.Y -
+                    _geometry.Destination.Top);
+
+        RaiseActivity();
+        return true;
     }
 
     public bool Begin(
@@ -137,7 +171,7 @@ public sealed class PortalInputController : IDisposable
             _geometry.TryGetExitTarget(
                 exitEdge,
                 sourcePoint,
-                _activeMonitorRects,
+                _logicalMonitorRects,
                 out var exitTarget))
         {
             _pointer.ReleaseClip();

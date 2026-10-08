@@ -33,6 +33,7 @@ internal sealed class MirrorSessionForm : Form
     private const int DwmwaExcludedFromPeek = 12;
 
     private const int MinimumFullFrameIntervalMilliseconds = 16;
+    private const int BackingGuardPollIntervalMilliseconds = 16;
     private const int CursorPollIntervalMilliseconds = 8;
 
     private readonly DisplayEndpoint _source;
@@ -60,7 +61,7 @@ internal sealed class MirrorSessionForm : Form
     public MirrorSessionForm(
         DisplayEndpoint source,
         DisplayEndpoint destination,
-        IReadOnlyList<PixelRect> activeMonitorRects,
+        IReadOnlyList<PixelRect> logicalMonitorRects,
         MirrorRenderMode renderMode)
     {
         _source = source ??
@@ -93,7 +94,7 @@ internal sealed class MirrorSessionForm : Form
                 new PortalInputGeometry(
                     sourceRect,
                     destinationRect),
-                activeMonitorRects,
+                logicalMonitorRects,
                 _pointer);
 
         _portal.Activity +=
@@ -138,7 +139,7 @@ internal sealed class MirrorSessionForm : Form
             new System.Windows.Forms.Timer
             {
                 Interval =
-                    CursorPollIntervalMilliseconds
+                    BackingGuardPollIntervalMilliseconds
             };
 
         _cursorTimer.Tick +=
@@ -352,6 +353,10 @@ internal sealed class MirrorSessionForm : Form
             MinimumFullFrameIntervalMilliseconds);
 
         _frameTimer.Start();
+        _cursorTimer.Start();
+
+        SessionDiagnostics.Write(
+            "Logical pointer topology guard started; backing source is hidden from normal cursor traversal.");
     }
 
     private void MirrorSessionForm_FormClosing(
@@ -401,7 +406,19 @@ internal sealed class MirrorSessionForm : Form
 
         if (!_portal.IsActive)
         {
-            _cursorTimer.Stop();
+            if (_cursorTimer.Interval !=
+                BackingGuardPollIntervalMilliseconds)
+            {
+                _cursorTimer.Interval =
+                    BackingGuardPollIntervalMilliseconds;
+            }
+
+            if (_portal.RedirectBackingSourceIfInactive())
+            {
+                SessionDiagnostics.Write(
+                    "Pointer entered the hidden backing source outside Portal mode; redirected to the mirrored destination.");
+            }
+
             return;
         }
 
@@ -411,7 +428,8 @@ internal sealed class MirrorSessionForm : Form
         if (portalState !=
             PortalUpdateState.Active)
         {
-            _cursorTimer.Stop();
+            _cursorTimer.Interval =
+                BackingGuardPollIntervalMilliseconds;
 
             if (_usingD3D11)
             {

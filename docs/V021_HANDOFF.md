@@ -84,6 +84,38 @@ Implemented after the first v0.21 device test:
 
 This checkpoint specifically targets the observed double cursor and the remaining small late-following feel.
 
+## v0.21.0 stable checkpoint
+
+The user completed an approximately 6–7 hour normal-use session on commit `f66bcb23e7b1ecf42ae7901d1d433372225ede15`. The D3D11 cursor/presentation path was reported as substantially more native-feeling than the earlier GDI path, with no significant reaction/frame-drop complaint during that session.
+
+That exact state is frozen at:
+
+- branch: `release/v0.21.0`
+- commit: `f66bcb23e7b1ecf42ae7901d1d433372225ede15`
+- launcher: `run-v021.cmd`
+
+Do not modify that release branch for v0.21.1 work.
+
+## v0.21.1 — logical cursor topology
+
+v0.21.1 starts from the exact v0.21.0 stable commit and changes pointer topology only.
+
+Goal: keep the virtual QHD source active as the native Windows backing workspace while making normal pointer navigation feel as though only the visible physical displays exist.
+
+Implementation rules:
+
+- exclude the selected backing source from the logical pointer-neighbor list,
+- Portal exit routing is based on the physical destination's visible neighbors,
+- if the backing source physically sits immediately between the destination and another visible monitor, allow the exit calculation to step through that one hidden backing rectangle,
+- if no visible neighbor exists on an edge, keep the pointer at the mirrored destination edge instead of exposing the backing display,
+- while Portal is inactive, redirect accidental pointer entry into the selected backing source to the corresponding destination position,
+- preserve all v0.21.0 native source-side input behavior,
+- do not implement logical window/app transfer in this checkpoint.
+
+Detailed design: `docs/V0211_LOGICAL_CURSOR_TOPOLOGY.md`.
+
+Launcher: `run-v0211.cmd → run-v0211.vbs → hidden run-v0211.ps1`.
+
 ## Version policy
 
-Next version is `v0.21`. Continue sequentially (`v0.22`, `v0.23`, ...) unless there is an explicit reason to make a larger version jump.
+Current patch line is `v0.21.1`. Preserve `release/v0.21.0` as the stable rollback point. Continue patching sequentially within v0.21 when the work is a small compatibility/usability improvement; use v0.22 only for a broader new milestone.

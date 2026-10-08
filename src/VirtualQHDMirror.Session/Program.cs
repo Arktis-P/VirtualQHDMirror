@@ -80,11 +80,16 @@ internal static class Program
                 $"Resolved source={source.SourceName} {source.Resolution} @ ({source.X},{source.Y}); " +
                 $"destination={destination.SourceName} {destination.Resolution} @ ({destination.X},{destination.Y})");
 
-            var monitorRects =
+            var logicalMonitorRects =
                 result.Displays
                     .Where(display =>
                         display.Width > 0 &&
                         display.Height > 0)
+                    .Where(display =>
+                        !string.Equals(
+                            display.SourceName,
+                            source.SourceName,
+                            StringComparison.OrdinalIgnoreCase))
                     .Select(display =>
                         new PixelRect(
                             display.X,
@@ -93,11 +98,19 @@ internal static class Program
                             display.Height))
                     .ToArray();
 
+            SessionDiagnostics.Write(
+                $"Logical pointer topology hides backing source={source.SourceName}; visible display rects=" +
+                string.Join(
+                    " | ",
+                    logicalMonitorRects.Select(
+                        rect =>
+                            $"({rect.Left},{rect.Top}) {rect.Width}x{rect.Height}")));
+
             using var form =
                 new MirrorSessionForm(
                     source,
                     destination,
-                    monitorRects,
+                    logicalMonitorRects,
                     options.RenderMode);
 
             SessionDiagnostics.Write(

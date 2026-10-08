@@ -228,11 +228,11 @@ public sealed class PortalInputGeometry
     public bool TryGetExitTarget(
         PortalEdge edge,
         PixelPoint sourcePoint,
-        IReadOnlyList<PixelRect> activeMonitorRects,
+        IReadOnlyList<PixelRect> logicalMonitorRects,
         out PixelPoint target)
     {
         ArgumentNullException.ThrowIfNull(
-            activeMonitorRects);
+            logicalMonitorRects);
 
         target = MapSourceToDestination(
             sourcePoint);
@@ -271,14 +271,121 @@ public sealed class PortalInputGeometry
             return false;
         }
 
-        foreach (var monitorRect in activeMonitorRects)
+        if (TryFindContainingMonitor(
+                target,
+                logicalMonitorRects,
+                out _))
         {
-            if (monitorRect.Contains(target))
+            return true;
+        }
+
+        // The selected source display is a hidden backing workspace from the
+        // user's point of view. If it physically occupies the pixel directly
+        // beyond the destination edge, step through it once and look for a
+        // visible monitor on the far side. This keeps the Windows display
+        // topology intact while making the pointer topology behave as though
+        // the backing display did not exist.
+        if (!Source.Contains(
+                target))
+        {
+            return false;
+        }
+
+        var beyondBackingSource =
+            edge switch
             {
+                PortalEdge.Left =>
+                    target with
+                    {
+                        X = Source.Left - 1
+                    },
+
+                PortalEdge.Right =>
+                    target with
+                    {
+                        X = Source.Right
+                    },
+
+                PortalEdge.Top =>
+                    target with
+                    {
+                        Y = Source.Top - 1
+                    },
+
+                PortalEdge.Bottom =>
+                    target with
+                    {
+                        Y = Source.Bottom
+                    },
+
+                _ => target
+            };
+
+        if (!TryFindContainingMonitor(
+                beyondBackingSource,
+                logicalMonitorRects,
+                out var neighbor))
+        {
+            return false;
+        }
+
+        target =
+            edge switch
+            {
+                PortalEdge.Left =>
+                    new PixelPoint(
+                        neighbor.Right - 1,
+                        Math.Clamp(
+                            beyondBackingSource.Y,
+                            neighbor.Top,
+                            neighbor.Bottom - 1)),
+
+                PortalEdge.Right =>
+                    new PixelPoint(
+                        neighbor.Left,
+                        Math.Clamp(
+                            beyondBackingSource.Y,
+                            neighbor.Top,
+                            neighbor.Bottom - 1)),
+
+                PortalEdge.Top =>
+                    new PixelPoint(
+                        Math.Clamp(
+                            beyondBackingSource.X,
+                            neighbor.Left,
+                            neighbor.Right - 1),
+                        neighbor.Bottom - 1),
+
+                PortalEdge.Bottom =>
+                    new PixelPoint(
+                        Math.Clamp(
+                            beyondBackingSource.X,
+                            neighbor.Left,
+                            neighbor.Right - 1),
+                        neighbor.Top),
+
+                _ => beyondBackingSource
+            };
+
+        return true;
+    }
+
+    private static bool TryFindContainingMonitor(
+        PixelPoint point,
+        IReadOnlyList<PixelRect> monitorRects,
+        out PixelRect monitor)
+    {
+        foreach (var candidate in monitorRects)
+        {
+            if (candidate.Contains(
+                    point))
+            {
+                monitor = candidate;
                 return true;
             }
         }
 
+        monitor = default;
         return false;
     }
 
