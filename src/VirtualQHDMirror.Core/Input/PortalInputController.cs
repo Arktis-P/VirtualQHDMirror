@@ -16,6 +16,7 @@ public sealed class PortalInputController : IDisposable
     private readonly PortalInputGeometry _geometry;
     private readonly IReadOnlyList<PixelRect> _logicalMonitorRects;
     private readonly WindowsPointerInjector _pointer;
+    private readonly Action<string>? _diagnostics;
 
     private PortalEdge _blockedEdge;
     private PixelPoint _lastPortalCursor;
@@ -26,7 +27,8 @@ public sealed class PortalInputController : IDisposable
     public PortalInputController(
         PortalInputGeometry geometry,
         IReadOnlyList<PixelRect> logicalMonitorRects,
-        WindowsPointerInjector? pointer = null)
+        WindowsPointerInjector? pointer = null,
+        Action<string>? diagnostics = null)
     {
         _geometry = geometry ??
             throw new ArgumentNullException(
@@ -38,6 +40,8 @@ public sealed class PortalInputController : IDisposable
 
         _pointer = pointer ??
             new WindowsPointerInjector();
+
+        _diagnostics = diagnostics;
     }
 
     public event EventHandler? Activity;
@@ -72,7 +76,11 @@ public sealed class PortalInputController : IDisposable
             _geometry.MapSourceToDestination(
                 current);
 
+        Trace(
+            $"guard redirect source={FormatPoint(current)} target={FormatPoint(destinationPoint)}");
+
         if (!MoveTopologyTransition(
+                "guard-source-to-destination",
                 destinationPoint))
         {
             return false;
@@ -106,9 +114,14 @@ public sealed class PortalInputController : IDisposable
             _geometry.MapDestinationLocalToSource(
                 destinationLocal);
 
+        Trace(
+            $"begin request local={FormatPoint(destinationLocal)} mappedSource={FormatPoint(sourcePoint)} edge={_geometry.DetectEntryEdge(destinationLocal)}");
+
         if (!_pointer.ClipTo(
                 _geometry.Source))
         {
+            Trace(
+                "begin failed: ClipCursor(source) returned false.");
             return false;
         }
 
@@ -123,12 +136,18 @@ public sealed class PortalInputController : IDisposable
         _lastPortalCursorValid = true;
 
         if (!MoveTopologyTransition(
+                "portal-begin",
                 sourcePoint))
         {
             _pointer.ReleaseClip();
             ResetState();
+            Trace(
+                "begin failed: pointer warp to source failed.");
             return false;
         }
+
+        Trace(
+            $"begin active blockedEdge={_blockedEdge}");
 
         RaiseActivity();
         return true;
@@ -152,6 +171,9 @@ public sealed class PortalInputController : IDisposable
         if (!_geometry.IsSourcePoint(
                 sourcePoint))
         {
+            Trace(
+                $"lost-source actual={FormatPoint(sourcePoint)} blockedEdge={_blockedEdge}");
+
             _pointer.ReleaseClip();
             ResetState();
             return PortalUpdateState.LostSource;
@@ -174,10 +196,16 @@ public sealed class PortalInputController : IDisposable
                 _logicalMonitorRects,
                 out var exitTarget))
         {
+            Trace(
+                $"exit edge={exitEdge} source={FormatPoint(sourcePoint)} target={FormatPoint(exitTarget)} blockedEdge={_blockedEdge}");
+
             _pointer.ReleaseClip();
             ResetState();
+
             MoveTopologyTransition(
+                $"portal-exit-{exitEdge}",
                 exitTarget);
+
             RaiseActivity();
             return PortalUpdateState.Exited;
         }
@@ -218,10 +246,16 @@ public sealed class PortalInputController : IDisposable
                     current);
         }
 
+        Trace(
+            $"end-to-destination target={FormatPoint(destinationPoint)}");
+
         _pointer.ReleaseClip();
         ResetState();
+
         MoveTopologyTransition(
+            "portal-end",
             destinationPoint);
+
         RaiseActivity();
     }
 
@@ -262,11 +296,46 @@ public sealed class PortalInputController : IDisposable
     }
 
     private bool MoveTopologyTransition(
+        string reason,
+        PixelPoint point)
+    {
+        var hadBefore =
+            _pointer.TryGetCursorPosition(
+                out var before);
+
+        var setPositionSucceeded =
+            _pointer.SetPosition(
+                point);
+
+        var fallbackSucceeded =
+            false;
+
+        if (!setPositionSucceeded)
+        {
+            fallbackSucceeded =
+                _pointer.MoveAbsolute(
+                    point);
+        }
+
+        var hadAfter =
+            _pointer.TryGetCursorPosition(
+                out var after);
+
+        Trace(
+            $"warp reason={reason}; before={(hadBefore ? FormatPoint(before) : "unavailable")}; target={FormatPoint(point)}; setCursorPos={setPositionSucceeded}; fallbackSendInput={fallbackSucceeded}; after={(hadAfter ? FormatPoint(after) : "unavailable")}");
+
+        return setPositionSucceeded ||
+               fallbackSucceeded;
+    }
+
+    private void Trace(
+        string message) =>
+        _diagnostics?.Invoke(
+            message);
+
+    private static string FormatPoint(
         PixelPoint point) =>
-        _pointer.SetPosition(
-            point) ||
-        _pointer.MoveAbsolute(
-            point);
+        $"({point.X},{point.Y})";
 
     private void ResetState()
     {

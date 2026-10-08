@@ -38,7 +38,9 @@ internal sealed class MirrorSessionForm : Form
 
     private readonly DisplayEndpoint _source;
     private readonly DisplayEndpoint _destination;
+    private readonly PixelRect _sourceRect;
     private readonly PixelRect _destinationRect;
+    private readonly IReadOnlyList<PixelRect> _logicalMonitorRects;
     private readonly GdiMirrorRenderer _gdiRenderer;
     private D3D11PresentationLoop? _d3dLoop;
     private readonly WindowsPointerInjector _pointer;
@@ -59,6 +61,8 @@ internal sealed class MirrorSessionForm : Form
     private DateTimeOffset _lastD3DStats =
         DateTimeOffset.UtcNow;
 
+    private string? _lastPointerDiagnosticState;
+
     public MirrorSessionForm(
         DisplayEndpoint source,
         DisplayEndpoint destination,
@@ -75,11 +79,12 @@ internal sealed class MirrorSessionForm : Form
 
         _renderMode = renderMode;
 
-        var sourceRect = new PixelRect(
-            source.X,
-            source.Y,
-            source.Width,
-            source.Height);
+        _sourceRect =
+            new PixelRect(
+                source.X,
+                source.Y,
+                source.Width,
+                source.Height);
 
         _destinationRect =
             new PixelRect(
@@ -88,16 +93,24 @@ internal sealed class MirrorSessionForm : Form
                 destination.Width,
                 destination.Height);
 
+        _logicalMonitorRects =
+            logicalMonitorRects ??
+            throw new ArgumentNullException(
+                nameof(logicalMonitorRects));
+
         _pointer =
             new WindowsPointerInjector();
 
         _portal =
             new PortalInputController(
                 new PortalInputGeometry(
-                    sourceRect,
+                    _sourceRect,
                     _destinationRect),
-                logicalMonitorRects,
-                _pointer);
+                _logicalMonitorRects,
+                _pointer,
+                message =>
+                    SessionDiagnostics.Write(
+                        $"CursorDiag portal: {message}"));
 
         _portal.Activity +=
             Portal_Activity;
@@ -240,12 +253,22 @@ internal sealed class MirrorSessionForm : Form
         _portal.UpdateDestinationLocal(
             local);
 
-        if (!_portal.IsActive &&
-            IsCurrentPointerOnDestination() &&
-            _portal.Begin(local))
+        if (!_portal.IsActive)
         {
-            BeginPortalCursorPolling();
-            DrawFrame();
+            if (IsCurrentPointerOnDestination() &&
+                _portal.Begin(local))
+            {
+                BeginPortalCursorPolling();
+                TracePointerState(
+                    "mouse-move-begin",
+                    force: true);
+                DrawFrame();
+            }
+            else
+            {
+                TracePointerState(
+                    "mouse-move-ignored");
+            }
         }
 
         base.OnMouseMove(
@@ -265,19 +288,29 @@ internal sealed class MirrorSessionForm : Form
         _portal.UpdateDestinationLocal(
             local);
 
-        if (!_portal.IsActive &&
-            IsCurrentPointerOnDestination() &&
-            _portal.Begin(local))
+        if (!_portal.IsActive)
         {
-            BeginPortalCursorPolling();
-            DrawFrame();
-
-            if (TryMapMouseButton(
-                    e.Button,
-                    out var button))
+            if (IsCurrentPointerOnDestination() &&
+                _portal.Begin(local))
             {
-                _portal.SendButtonDown(
-                    button);
+                BeginPortalCursorPolling();
+                TracePointerState(
+                    "mouse-down-begin",
+                    force: true);
+                DrawFrame();
+
+                if (TryMapMouseButton(
+                        e.Button,
+                        out var button))
+                {
+                    _portal.SendButtonDown(
+                        button);
+                }
+            }
+            else
+            {
+                TracePointerState(
+                    "mouse-down-ignored");
             }
         }
 
@@ -298,15 +331,25 @@ internal sealed class MirrorSessionForm : Form
         _portal.UpdateDestinationLocal(
             local);
 
-        if (!_portal.IsActive &&
-            IsCurrentPointerOnDestination() &&
-            _portal.Begin(local))
+        if (!_portal.IsActive)
         {
-            BeginPortalCursorPolling();
-            DrawFrame();
+            if (IsCurrentPointerOnDestination() &&
+                _portal.Begin(local))
+            {
+                BeginPortalCursorPolling();
+                TracePointerState(
+                    "mouse-wheel-begin",
+                    force: true);
+                DrawFrame();
 
-            _portal.SendWheel(
-                e.Delta);
+                _portal.SendWheel(
+                    e.Delta);
+            }
+            else
+            {
+                TracePointerState(
+                    "mouse-wheel-ignored");
+            }
         }
 
         base.OnMouseWheel(
@@ -318,6 +361,119 @@ internal sealed class MirrorSessionForm : Form
             out var current) &&
         _destinationRect.Contains(
             current);
+
+    private void TracePointerState(
+        string trigger,
+        bool force = false)
+    {
+        if (!_pointer.TryGetCursorPosition(
+                out var current))
+        {
+            if (force)
+            {
+                SessionDiagnostics.Write(
+                    $"CursorDiag state trigger={trigger}; position=unavailable; portal={_portal.IsActive}; blockedEdge={_portal.BlockedEdge}.");
+            }
+
+            return;
+        }
+
+        var region =
+            DescribePointerRegion(
+                current);
+
+        var clipText =
+            "unavailable";
+
+        var clipMatchesSource =
+            false;
+
+        if (_pointer.TryGetClipRect(
+                out var clipRect))
+        {
+            clipText =
+                FormatRect(
+                    clipRect);
+
+            clipMatchesSource =
+                clipRect == _sourceRect;
+        }
+
+        var state =
+            $"pos={FormatPoint(current)}; region={region}; portal={_portal.IsActive}; blockedEdge={_portal.BlockedEdge}; clip={clipText}; clipMatchesSource={clipMatchesSource}";
+
+        if (!force &&
+            string.Equals(
+                state,
+                _lastPointerDiagnosticState,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastPointerDiagnosticState =
+            state;
+
+        SessionDiagnostics.Write(
+            $"CursorDiag state trigger={trigger}; {state}");
+    }
+
+    private string DescribePointerRegion(
+        PixelPoint point)
+    {
+        if (_sourceRect.Contains(
+                point))
+        {
+            return "BACKING_SOURCE";
+        }
+
+        if (_destinationRect.Contains(
+                point))
+        {
+            return "MIRRORED_DESTINATION";
+        }
+
+        for (var index = 0;
+             index < _logicalMonitorRects.Count;
+             index++)
+        {
+            var rect =
+                _logicalMonitorRects[index];
+
+            if (rect == _destinationRect)
+            {
+                continue;
+            }
+
+            if (rect.Contains(
+                    point))
+            {
+                return
+                    $"VISIBLE_OTHER[{index}]";
+            }
+        }
+
+        return "OUTSIDE_ACTIVE_RECTS";
+    }
+
+    private static string FormatPoint(
+        PixelPoint point) =>
+        $"({point.X},{point.Y})";
+
+    private static string FormatRect(
+        PixelRect rect) =>
+        $"({rect.Left},{rect.Top}) {rect.Width}x{rect.Height}";
+
+    private IEnumerable<string> GetLogicalMonitorDescriptions()
+    {
+        for (var index = 0;
+             index < _logicalMonitorRects.Count;
+             index++)
+        {
+            yield return
+                $"[{index}]={FormatRect(_logicalMonitorRects[index])}";
+        }
+    }
 
     private void MirrorSessionForm_Shown(
         object? sender,
@@ -367,7 +523,14 @@ internal sealed class MirrorSessionForm : Form
         _cursorTimer.Start();
 
         SessionDiagnostics.Write(
+            $"CursorDiag topology: source={FormatRect(_sourceRect)}; destination={FormatRect(_destinationRect)}; logicalVisible={string.Join(" | ", GetLogicalMonitorDescriptions())}.");
+
+        SessionDiagnostics.Write(
             "Logical pointer topology guard started; backing source is hidden from normal cursor traversal.");
+
+        TracePointerState(
+            "session-shown",
+            force: true);
     }
 
     private void MirrorSessionForm_FormClosing(
@@ -415,6 +578,9 @@ internal sealed class MirrorSessionForm : Form
             return;
         }
 
+        TracePointerState(
+            "cursor-poll");
+
         if (!_portal.IsActive)
         {
             if (_cursorTimer.Interval !=
@@ -428,6 +594,10 @@ internal sealed class MirrorSessionForm : Form
             {
                 SessionDiagnostics.Write(
                     "Pointer entered the hidden backing source outside Portal mode; redirected to the mirrored destination.");
+
+                TracePointerState(
+                    "guard-redirect",
+                    force: true);
             }
 
             return;
@@ -441,6 +611,10 @@ internal sealed class MirrorSessionForm : Form
         {
             SessionDiagnostics.Write(
                 $"Portal transition completed with state={portalState}.");
+
+            TracePointerState(
+                $"portal-{portalState}",
+                force: true);
 
             _cursorTimer.Interval =
                 BackingGuardPollIntervalMilliseconds;

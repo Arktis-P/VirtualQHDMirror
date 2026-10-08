@@ -75,6 +75,31 @@ The correction is intentionally narrow:
 
 This is not the rejected continuous cursor-correction experiment. Synchronous positioning is used only at discrete topology transitions.
 
+## Cursor transition diagnostics
+
+v0.21.1 includes state-change diagnostics for the intermittent backing-source/destination traversal issue.
+
+The session log remains:
+
+```text
+%LOCALAPPDATA%\VirtualQHDMirror\logs\native-session.log
+```
+
+Search for `CursorDiag`.
+
+The diagnostics record:
+
+- real global Windows cursor coordinates,
+- whether the cursor is currently in `BACKING_SOURCE`, `MIRRORED_DESTINATION`, another visible monitor, or outside known active rectangles,
+- Portal active state and blocked entry edge,
+- current `ClipCursor` rectangle and whether it still exactly matches the backing source,
+- every VQM topology warp with reason, before/target/after coordinates, and whether `SetCursorPos` or the fallback absolute input path succeeded,
+- Portal begin, exit, lost-source, and backing-guard redirects.
+
+Logging is state-change based rather than per-frame, so long sessions should remain readable.
+
+For the next reproduction, leave the session running until the unexpected 3→2 behavior occurs, then close VQM normally and preserve `native-session.log`. The important lines are the last `CursorDiag` entries before and after the unexpected transition.
+
 ## Validation
 
 Use `run-v0211.cmd`.

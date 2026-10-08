@@ -76,6 +76,28 @@ public sealed class WindowsPointerInjector
         NativeMethods.ReleaseCursorClip(
             IntPtr.Zero);
 
+    public bool TryGetClipRect(
+        out PixelRect rect)
+    {
+        if (!NativeMethods.GetClipCursor(
+                out var nativeRect))
+        {
+            rect = default;
+            return false;
+        }
+
+        rect =
+            new PixelRect(
+                nativeRect.Left,
+                nativeRect.Top,
+                nativeRect.Right -
+                    nativeRect.Left,
+                nativeRect.Bottom -
+                    nativeRect.Top);
+
+        return true;
+    }
+
     internal bool SetPosition(
         PixelPoint point) =>
         NativeMethods.SetCursorPos(
@@ -316,6 +338,13 @@ public sealed class WindowsPointerInjector
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool ReleaseCursorClip(
             IntPtr rect);
+
+        [DllImport(
+            "user32.dll",
+            SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetClipCursor(
+            out NativeRect rect);
 
         [DllImport(
             "user32.dll",
