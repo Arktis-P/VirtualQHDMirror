@@ -38,6 +38,7 @@ internal sealed class MirrorSessionForm : Form
 
     private readonly DisplayEndpoint _source;
     private readonly DisplayEndpoint _destination;
+    private readonly PixelRect _destinationRect;
     private readonly GdiMirrorRenderer _gdiRenderer;
     private D3D11PresentationLoop? _d3dLoop;
     private readonly WindowsPointerInjector _pointer;
@@ -80,11 +81,12 @@ internal sealed class MirrorSessionForm : Form
             source.Width,
             source.Height);
 
-        var destinationRect = new PixelRect(
-            destination.X,
-            destination.Y,
-            destination.Width,
-            destination.Height);
+        _destinationRect =
+            new PixelRect(
+                destination.X,
+                destination.Y,
+                destination.Width,
+                destination.Height);
 
         _pointer =
             new WindowsPointerInjector();
@@ -93,7 +95,7 @@ internal sealed class MirrorSessionForm : Form
             new PortalInputController(
                 new PortalInputGeometry(
                     sourceRect,
-                    destinationRect),
+                    _destinationRect),
                 logicalMonitorRects,
                 _pointer);
 
@@ -239,6 +241,7 @@ internal sealed class MirrorSessionForm : Form
             local);
 
         if (!_portal.IsActive &&
+            IsCurrentPointerOnDestination() &&
             _portal.Begin(local))
         {
             BeginPortalCursorPolling();
@@ -263,6 +266,7 @@ internal sealed class MirrorSessionForm : Form
             local);
 
         if (!_portal.IsActive &&
+            IsCurrentPointerOnDestination() &&
             _portal.Begin(local))
         {
             BeginPortalCursorPolling();
@@ -295,6 +299,7 @@ internal sealed class MirrorSessionForm : Form
             local);
 
         if (!_portal.IsActive &&
+            IsCurrentPointerOnDestination() &&
             _portal.Begin(local))
         {
             BeginPortalCursorPolling();
@@ -307,6 +312,12 @@ internal sealed class MirrorSessionForm : Form
         base.OnMouseWheel(
             e);
     }
+
+    private bool IsCurrentPointerOnDestination() =>
+        _pointer.TryGetCursorPosition(
+            out var current) &&
+        _destinationRect.Contains(
+            current);
 
     private void MirrorSessionForm_Shown(
         object? sender,
@@ -428,6 +439,9 @@ internal sealed class MirrorSessionForm : Form
         if (portalState !=
             PortalUpdateState.Active)
         {
+            SessionDiagnostics.Write(
+                $"Portal transition completed with state={portalState}.");
+
             _cursorTimer.Interval =
                 BackingGuardPollIntervalMilliseconds;
 

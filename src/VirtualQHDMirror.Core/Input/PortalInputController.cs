@@ -72,7 +72,7 @@ public sealed class PortalInputController : IDisposable
             _geometry.MapSourceToDestination(
                 current);
 
-        if (!_pointer.MoveAbsolute(
+        if (!MoveTopologyTransition(
                 destinationPoint))
         {
             return false;
@@ -122,7 +122,7 @@ public sealed class PortalInputController : IDisposable
 
         _lastPortalCursorValid = true;
 
-        if (!_pointer.MoveAbsolute(
+        if (!MoveTopologyTransition(
                 sourcePoint))
         {
             _pointer.ReleaseClip();
@@ -176,7 +176,7 @@ public sealed class PortalInputController : IDisposable
         {
             _pointer.ReleaseClip();
             ResetState();
-            _pointer.MoveAbsolute(
+            MoveTopologyTransition(
                 exitTarget);
             RaiseActivity();
             return PortalUpdateState.Exited;
@@ -220,7 +220,7 @@ public sealed class PortalInputController : IDisposable
 
         _pointer.ReleaseClip();
         ResetState();
-        _pointer.MoveAbsolute(
+        MoveTopologyTransition(
             destinationPoint);
         RaiseActivity();
     }
@@ -260,6 +260,13 @@ public sealed class PortalInputController : IDisposable
 
         _disposed = true;
     }
+
+    private bool MoveTopologyTransition(
+        PixelPoint point) =>
+        _pointer.SetPosition(
+            point) ||
+        _pointer.MoveAbsolute(
+            point);
 
     private void ResetState()
     {

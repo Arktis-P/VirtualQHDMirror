@@ -2,23 +2,20 @@
 
 These rules exist to reduce unnecessary GitHub usage, avoid noisy remote history, and keep validation reproducible on the developer machine.
 
-## 1. GitHub Actions budget
+## 1. Remote validation prohibition
 
-GitHub Actions are **not** the default build/test mechanism for this repository.
+GitHub Actions and other hosted CI/remote build systems are not permitted as a validation mechanism unless the repository owner explicitly requests the specific remote run in the current task.
 
 Rules:
 
-1. Prefer local commands and reusable local scripts for restore, build, test, lint/static checks, packaging dry-runs, and smoke validation.
-2. Do not add a workflow merely because a local environment is temporarily unavailable.
-3. Do not run CI on every commit or every push during normal development.
-4. Do not repeatedly rerun remote workflows while debugging. Reproduce and fix failures locally first.
-5. Artifact uploads from Actions are not used for ordinary checkpoints.
-6. GitHub Actions may be introduced only when there is a clear remote-only need, such as:
-   - release packaging that must be reproducible from a clean hosted environment,
-   - signing/release steps that are intentionally hosted remotely,
-   - a final public release gate explicitly approved by the repository owner.
-7. If a workflow is eventually required, prefer manual `workflow_dispatch`, release/tag triggers, or another narrow trigger over broad push/PR triggers.
-8. Keep workflow jobs minimal. Do not duplicate local validation jobs without a concrete release benefit.
+1. Do not create, enable, dispatch, or rerun GitHub Actions for ordinary validation.
+2. Do not use hosted CI, cloud builds, remote test runners, or remote artifact builds as a substitute for unavailable local tooling.
+3. Prefer local commands and reusable local scripts for restore, build, test, lint/static checks, packaging dry-runs, and smoke validation.
+4. If the current environment cannot execute the Windows/.NET validation locally, report that limitation and wait for the repository owner's local result.
+5. Do not add workflow files merely to obtain a build result.
+6. Do not trigger an existing workflow through the GitHub UI, API, CLI, or connector unless the repository owner explicitly asks for that run.
+7. Release/signing automation also requires explicit owner approval for the specific remote run.
+8. Artifact uploads from Actions are not used for ordinary checkpoints.
 
 ## 2. Local validation first
 
@@ -29,7 +26,7 @@ Before a remote push at a major checkpoint:
 - fix failures locally,
 - do not add GitHub Actions solely to obtain a build result.
 
-If local execution is unavailable, report that limitation explicitly. Do not claim PASS and do not consume remote Actions minutes simply to compensate.
+If local execution is unavailable, report that limitation explicitly. Do not claim PASS and do not invoke remote validation to compensate.
 
 ## 3. Commit and checkpoint policy
 

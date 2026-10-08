@@ -39,9 +39,9 @@ The repository-wide resource rules in `docs/REPOSITORY_OPERATION_RULES.md` are m
 
 In particular:
 
-- Do not add or enable GitHub Actions as the default validation path.
+- Do not use GitHub Actions or hosted CI for validation unless the repository owner explicitly requests a specific remote run.
 - Prefer local build, test, static validation, and reusable local scripts.
-- GitHub Actions require explicit justification and should normally be reserved for release/signing/package work that cannot reasonably be validated locally.
+- If local validation is unavailable, report that limitation and wait for the repository owner's local result; do not substitute remote CI.
 - Normal checkpoints may create as many focused local commits as needed.
 - A major checkpoint permits at most **one remote push/ref update**. Accumulate commits locally, validate them, then push once.
 - Do not use repeated remote pushes as a substitute for local iteration.

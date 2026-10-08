@@ -60,6 +60,21 @@ This checkpoint intentionally does not:
 
 The next separate milestone can address logical window transfer, for example making a window moved from physical display 1 toward visible destination 2 actually land on backing source 3.
 
+## Transition race correction
+
+First device testing exposed an intermittent exit race: a pointer leaving the mirrored destination could reach the adjacent physical monitor correctly, or bounce back to the destination/backing pair.
+
+The race happened because Portal state could reset before an asynchronous absolute pointer move became visible to the backing guard. The guard could then observe the old source position and redirect it back to the destination.
+
+The correction is intentionally narrow:
+
+- topology entry/exit/guard warps use synchronous cursor positioning first, with the previous absolute input move retained only as fallback;
+- destination-window mouse events can open Portal only when the current global cursor position is actually inside the physical destination;
+- continuous pointer movement inside the mirrored workspace is unchanged;
+- D3D11 presentation is unchanged.
+
+This is not the rejected continuous cursor-correction experiment. Synchronous positioning is used only at discrete topology transitions.
+
 ## Validation
 
 Use `run-v0211.cmd`.
