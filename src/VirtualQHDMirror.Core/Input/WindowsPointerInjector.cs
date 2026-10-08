@@ -40,6 +40,51 @@ public sealed class WindowsPointerInjector
     private const int SmCxVirtualScreen = 78;
     private const int SmCyVirtualScreen = 79;
 
+    private const int VkLButton = 0x01;
+    private const int VkRButton = 0x02;
+    private const int VkMButton = 0x04;
+    private const int VkXButton1 = 0x05;
+    private const int VkXButton2 = 0x06;
+
+    public bool IsButtonDown(
+        NativeMouseButton button)
+    {
+        var virtualKey =
+            button switch
+            {
+                NativeMouseButton.Right =>
+                    VkRButton,
+
+                NativeMouseButton.Middle =>
+                    VkMButton,
+
+                NativeMouseButton.XButton1 =>
+                    VkXButton1,
+
+                NativeMouseButton.XButton2 =>
+                    VkXButton2,
+
+                _ =>
+                    VkLButton
+            };
+
+        return (NativeMethods.GetAsyncKeyState(
+                    virtualKey) &
+                0x8000) != 0;
+    }
+
+    public bool IsAnyButtonDown() =>
+        IsButtonDown(
+            NativeMouseButton.Left) ||
+        IsButtonDown(
+            NativeMouseButton.Right) ||
+        IsButtonDown(
+            NativeMouseButton.Middle) ||
+        IsButtonDown(
+            NativeMouseButton.XButton1) ||
+        IsButtonDown(
+            NativeMouseButton.XButton2);
+
     public bool TryGetCursorPosition(
         out PixelPoint point)
     {
@@ -353,6 +398,11 @@ public sealed class WindowsPointerInjector
             uint inputCount,
             [In] NativeInput[] inputs,
             int inputSize);
+
+        [DllImport(
+            "user32.dll")]
+        internal static extern short GetAsyncKeyState(
+            int virtualKey);
 
         [DllImport(
             "user32.dll")]

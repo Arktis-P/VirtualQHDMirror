@@ -55,12 +55,15 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 - Stable root entry point: `run.cmd`
 - v0.20 launcher baseline: `run-v020.cmd` (do not repurpose for v0.21)
 - Frozen v0.21.0 launcher baseline: `run-v021.cmd`
-- Active v0.21.1 development entry point: `run-v0211.cmd`
+- v0.21.1 logical-cursor checkpoint launcher: `run-v0211.cmd`
+- Active v0.21.2 development entry point: `run-v0212.cmd`
 - Public-release v0.20 baseline: `main` / `gpt/public-release-v0.20` (closed)
 - Stable v0.21.0 checkpoint: `release/v0.21.0`
-- Active v0.21.1 development branch: `gpt/public-release-v0.21.1`
+- v0.21.1 logical-cursor checkpoint branch: `gpt/public-release-v0.21.1` (leave unchanged while v0.21.2 is tested)
+- Active v0.21.2 development branch: `gpt/public-release-v0.21.2`
 - v0.21 cursor-presentation handoff: `docs/V021_HANDOFF.md`
 - v0.21.1 logical cursor topology: `docs/V0211_LOGICAL_CURSOR_TOPOLOGY.md`
+- v0.21.2 native drag bridge: `docs/V0212_NATIVE_DRAG_BRIDGE.md`
 - Public-release .NET code: `src/`
 - Active documentation: `docs/`
 - Historical runnable baselines: `archive/v0.12/`, `archive/v0.13.1/`, `archive/v0.14.1/`

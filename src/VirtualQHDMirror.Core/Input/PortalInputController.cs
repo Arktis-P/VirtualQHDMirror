@@ -97,6 +97,41 @@ public sealed class PortalInputController : IDisposable
         return true;
     }
 
+    public bool BeginFromCurrentSource()
+    {
+        EnsureNotDisposed();
+
+        if (IsActive)
+        {
+            return true;
+        }
+
+        if (!_pointer.TryGetCursorPosition(
+                out var sourcePoint) ||
+            !_geometry.IsSourcePoint(
+                sourcePoint))
+        {
+            return false;
+        }
+
+        var destinationPoint =
+            _geometry.MapSourceToDestination(
+                sourcePoint);
+
+        var destinationLocal =
+            new PixelPoint(
+                destinationPoint.X -
+                    _geometry.Destination.Left,
+                destinationPoint.Y -
+                    _geometry.Destination.Top);
+
+        Trace(
+            $"begin-from-source source={FormatPoint(sourcePoint)} destinationLocal={FormatPoint(destinationLocal)}");
+
+        return Begin(
+            destinationLocal);
+    }
+
     public bool Begin(
         PixelPoint destinationLocal)
     {

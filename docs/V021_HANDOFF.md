@@ -116,6 +116,36 @@ Detailed design: `docs/V0211_LOGICAL_CURSOR_TOPOLOGY.md`.
 
 Launcher: `run-v0211.cmd → run-v0211.vbs → hidden run-v0211.ps1`.
 
+## v0.21.1 latest cursor-topology checkpoint
+
+The latest v0.21.1 branch state adds active-Portal clip recovery after diagnostics showed that `ClipCursor` could be released externally while Portal remained active.
+
+Checkpoint:
+
+- branch: `gpt/public-release-v0.21.1`
+- commit: `b6b9e9eaae3d2c8c41549e1478c874dbf45e46b6`
+- launcher: `run-v0211.cmd`
+
+The user reports that mirrored workspace → adjacent physical display traversal is now working well. Leave this branch unchanged while v0.21.2 is tested.
+
+## v0.21.2 — native drag bridge
+
+Goal: make dragging windows/files from another physical display into the visible mirrored destination land on the backing source without forcing the user to traverse the physical destination and virtual source separately.
+
+Implementation:
+
+- poll global pointer position at 8 ms while Portal is inactive,
+- track previous inactive pointer position,
+- detect a mouse-button-held transition into the visible destination even when the originating application owns capture,
+- start Portal from the destination coordinate without resending button-down,
+- detect fast destination overshoot into the backing source and adopt that native drag in place,
+- preserve v0.21.1 direct-exit topology and active clip recovery,
+- do not add custom window move or file drop logic.
+
+Detailed design: `docs/V0212_NATIVE_DRAG_BRIDGE.md`.
+
+Launcher: `run-v0212.cmd → run-v0212.vbs → hidden run-v0212.ps1`.
+
 ## Version policy
 
-Current patch line is `v0.21.1`. Preserve `release/v0.21.0` as the stable rollback point. Continue patching sequentially within v0.21 when the work is a small compatibility/usability improvement; use v0.22 only for a broader new milestone.
+Current patch line is `v0.21.2`. Preserve `release/v0.21.0` as the stable rollback point. Continue patching sequentially within v0.21 when the work is a small compatibility/usability improvement; use v0.22 only for a broader new milestone.

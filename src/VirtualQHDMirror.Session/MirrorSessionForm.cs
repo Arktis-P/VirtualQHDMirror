@@ -33,7 +33,7 @@ internal sealed class MirrorSessionForm : Form
     private const int DwmwaExcludedFromPeek = 12;
 
     private const int MinimumFullFrameIntervalMilliseconds = 16;
-    private const int BackingGuardPollIntervalMilliseconds = 16;
+    private const int BackingGuardPollIntervalMilliseconds = 8;
     private const int CursorPollIntervalMilliseconds = 8;
 
     private readonly DisplayEndpoint _source;
@@ -62,6 +62,8 @@ internal sealed class MirrorSessionForm : Form
         DateTimeOffset.UtcNow;
 
     private string? _lastPointerDiagnosticState;
+    private PixelPoint _lastInactivePointer;
+    private bool _lastInactivePointerValid;
 
     public MirrorSessionForm(
         DisplayEndpoint source,
@@ -590,6 +592,11 @@ internal sealed class MirrorSessionForm : Form
                     BackingGuardPollIntervalMilliseconds;
             }
 
+            if (TryBeginExternalDragBridge())
+            {
+                return;
+            }
+
             if (_portal.RedirectBackingSourceIfInactive())
             {
                 SessionDiagnostics.Write(
@@ -598,6 +605,8 @@ internal sealed class MirrorSessionForm : Form
                 TracePointerState(
                     "guard-redirect",
                     force: true);
+
+                RememberInactivePointer();
             }
 
             return;
@@ -618,6 +627,9 @@ internal sealed class MirrorSessionForm : Form
 
             _cursorTimer.Interval =
                 BackingGuardPollIntervalMilliseconds;
+
+            _lastInactivePointerValid =
+                false;
 
             if (_usingD3D11)
             {
@@ -781,8 +793,131 @@ internal sealed class MirrorSessionForm : Form
         MarkInput();
     }
 
+    private bool TryBeginExternalDragBridge()
+    {
+        if (!_pointer.TryGetCursorPosition(
+                out var current))
+        {
+            return false;
+        }
+
+        var previous =
+            _lastInactivePointer;
+
+        var hadPrevious =
+            _lastInactivePointerValid;
+
+        var anyButtonDown =
+            _pointer.IsAnyButtonDown();
+
+        _lastInactivePointer =
+            current;
+
+        _lastInactivePointerValid =
+            true;
+
+        if (!anyButtonDown ||
+            !hadPrevious)
+        {
+            return false;
+        }
+
+        var currentOnDestination =
+            _destinationRect.Contains(
+                current);
+
+        var previousOnDestination =
+            _destinationRect.Contains(
+                previous);
+
+        if (currentOnDestination &&
+            !previousOnDestination)
+        {
+            var local =
+                new PixelPoint(
+                    current.X -
+                        _destinationRect.Left,
+                    current.Y -
+                        _destinationRect.Top);
+
+            SessionDiagnostics.Write(
+                $"DragBridge destination-entry detected; previous={FormatPoint(previous)} current={FormatPoint(current)} local={FormatPoint(local)}.");
+
+            if (_portal.Begin(
+                    local))
+            {
+                SessionDiagnostics.Write(
+                    "DragBridge activated from visible destination; native drag capture remains owned by the originating application.");
+
+                BeginPortalCursorPolling();
+
+                TracePointerState(
+                    "drag-bridge-destination",
+                    force: true);
+
+                DrawFrame();
+                return true;
+            }
+
+            SessionDiagnostics.Write(
+                "DragBridge destination-entry Portal begin failed.");
+            return false;
+        }
+
+        var currentOnSource =
+            _sourceRect.Contains(
+                current);
+
+        var previousOnSource =
+            _sourceRect.Contains(
+                previous);
+
+        if (currentOnSource &&
+            !previousOnSource)
+        {
+            SessionDiagnostics.Write(
+                $"DragBridge backing-source overshoot detected; previous={FormatPoint(previous)} current={FormatPoint(current)}.");
+
+            if (_portal.BeginFromCurrentSource())
+            {
+                SessionDiagnostics.Write(
+                    "DragBridge activated after destination overshoot; native drag continues on backing source.");
+
+                BeginPortalCursorPolling();
+
+                TracePointerState(
+                    "drag-bridge-source-overshoot",
+                    force: true);
+
+                DrawFrame();
+                return true;
+            }
+
+            SessionDiagnostics.Write(
+                "DragBridge source-overshoot Portal begin failed.");
+        }
+
+        return false;
+    }
+
+    private void RememberInactivePointer()
+    {
+        if (_pointer.TryGetCursorPosition(
+                out var current))
+        {
+            _lastInactivePointer =
+                current;
+
+            _lastInactivePointerValid =
+                true;
+        }
+    }
+
     private void BeginPortalCursorPolling()
     {
+        _lastInactivePointerValid =
+            false;
+
         var interval =
             _usingD3D11
                 ? 4
