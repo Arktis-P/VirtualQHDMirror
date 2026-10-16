@@ -221,6 +221,23 @@
                                 IsEnabled="False"
                                 Click="ApplyDriverPlan_Click"
                                 Content="Apply driver plan" />
+
+                        <Border Margin="0,14,0,14"
+                                Height="1"
+                                Background="#E0E0E0" />
+
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Startup" />
+                        <CheckBox x:Name="StartWithWindowsCheckBox"
+                                  Margin="0,9,0,0"
+                                  Checked="StartWithWindows_Changed"
+                                  Unchecked="StartWithWindows_Changed"
+                                  Content="Start with Windows" />
+                        <TextBlock x:Name="StartupSummaryText"
+                                   Margin="22,5,0,0"
+                                   Foreground="DimGray"
+                                   Text="Disabled."
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>

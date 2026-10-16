@@ -581,8 +581,51 @@ internal sealed class NativeMirrorSessionProcessController : IDisposable
             return installedCandidate;
         }
 
+        foreach (var startDirectory in
+                 new[]
+                 {
+                     AppContext.BaseDirectory,
+                     Environment.CurrentDirectory
+                 })
+        {
+            var directory =
+                new DirectoryInfo(
+                    startDirectory);
+
+            for (var depth = 0;
+                 directory is not null &&
+                 depth < 10;
+                 depth++,
+                 directory = directory.Parent)
+            {
+                foreach (var configuration in
+                         new[]
+                         {
+                             "Debug",
+                             "Release"
+                         })
+                {
+                    var candidate =
+                        Path.Combine(
+                            directory.FullName,
+                            "src",
+                            "VirtualQHDMirror.Session",
+                            "bin",
+                            configuration,
+                            "net8.0-windows",
+                            executableName);
+
+                    if (File.Exists(
+                            candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
         throw new FileNotFoundException(
-            $"VirtualQHDMirror.Session.exe was not found. Expected a freshly built session binary. Run run-v020.cmd again. Diagnostics: {GetSessionLogPath()}");
+            $"VirtualQHDMirror.Session.exe was not found beside the app or in a development repository build output. Diagnostics: {GetSessionLogPath()}");
     }
 
     private static bool WaitForSessionWindow(

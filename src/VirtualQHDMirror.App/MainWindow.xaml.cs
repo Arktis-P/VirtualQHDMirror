@@ -13,10 +13,12 @@ public partial class MainWindow : Window
     private readonly DriverPlanElevatedRunner _driverPlanRunner = new();
     private readonly LegacyMirrorProcessController _mirrorController = new();
     private readonly NativeMirrorSessionProcessController _nativeMirrorController = new();
+    private readonly WindowsStartupRegistrationService _startupRegistration = new();
 
     private DriverConfigurationPlan? _currentDriverPlan;
     private bool _driverPlanApplyInProgress;
     private bool _synchronizingEngineSelection;
+    private bool _synchronizingStartupSelection;
 
     public MainWindow()
     {
@@ -39,6 +41,7 @@ public partial class MainWindow : Window
         _nativeMirrorController.StateChanged += MirrorController_StateChanged;
         Loaded += (_, _) =>
         {
+            RefreshStartupOption();
             DetectMirrorSessions();
             RefreshDisplays();
         };
@@ -56,6 +59,79 @@ public partial class MainWindow : Window
         DetectMirrorSessions();
         RefreshDisplays();
     }
+
+    private void StartWithWindows_Changed(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_synchronizingStartupSelection)
+        {
+            return;
+        }
+
+        try
+        {
+            if (StartWithWindowsCheckBox.IsChecked ==
+                true)
+            {
+                _startupRegistration.Enable();
+            }
+            else
+            {
+                _startupRegistration.Disable();
+            }
+
+            RefreshStartupOption();
+        }
+        catch (Exception exception)
+        {
+            RefreshStartupOption();
+
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Could not update Windows startup",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private void RefreshStartupOption()
+    {
+        _synchronizingStartupSelection =
+            true;
+
+        try
+        {
+            _startupRegistration
+                .RefreshCurrentExecutableIfEnabled();
+
+            var enabled =
+                _startupRegistration.IsEnabled();
+
+            StartWithWindowsCheckBox.IsChecked =
+                enabled;
+
+            StartupSummaryText.Text =
+                enabled
+                    ? "Enabled for this Windows account."
+                    : "Disabled.";
+        }
+        catch (Exception exception)
+        {
+            StartWithWindowsCheckBox.IsChecked =
+                false;
+
+            StartupSummaryText.Text =
+                $"Startup status unavailable: {exception.Message}";
+        }
+        finally
+        {
+            _synchronizingStartupSelection =
+                false;
+        }
+    }
+
 
     private void MirrorEngine_Changed(
         object sender,

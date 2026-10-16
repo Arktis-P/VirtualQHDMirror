@@ -146,6 +146,18 @@ Detailed design: `docs/V0212_NATIVE_DRAG_BRIDGE.md`.
 
 Launcher: `run-v0212.cmd → run-v0212.vbs → hidden run-v0212.ps1`.
 
+## v0.21.2 — Start with Windows option
+
+The WPF setup application now exposes a **Start with Windows** checkbox backed by the per-user Windows Run registry key.
+
+- no administrator permission required,
+- startup registration follows the current app executable path,
+- existing enabled registration is refreshed after the app moves,
+- Windows-login startup launches the app only; automatic mirroring is a separate future option,
+- direct app startup can locate the native session without relying on launcher-provided `VQM_REPO_ROOT`.
+
+Details: `docs/V0212_WINDOWS_STARTUP.md`.
+
 ## Version policy
 
 Current patch line is `v0.21.2`. Preserve `release/v0.21.0` as the stable rollback point. Continue patching sequentially within v0.21 when the work is a small compatibility/usability improvement; use v0.22 only for a broader new milestone.
