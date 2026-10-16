@@ -1,53 +1,73 @@
 # VirtualQHDMirror
 
-VirtualQHDMirror makes a lower-resolution physical Windows display act as an interactive view of a higher-resolution virtual desktop.
+VirtualQHDMirror makes a lower-resolution physical Windows display behave like an interactive view of a higher-resolution virtual desktop.
 
-The repository currently has two execution tracks:
+## Current version
 
-- **v0.14.1 stable fallback** — frozen PowerShell implementation under `archive/v0.14.1/`.
-- **v0.20 completed migration checkpoint** — .NET/WPF implementation under `src/` with display discovery, native mirror session, Portal input and GDI/cursor fallback path.
-- **v0.21 next** — GPU-native presentation, VSync-aware output and independent sub-pixel cursor rendering.
+**v0.21.2** is the active checkpoint.
 
-## Run
+Current behavior includes:
 
-### Stable v0.14.1
+- QueryDisplayConfig-based physical/virtual display discovery
+- D3D11 + Desktop Duplication presentation with destination VSync pacing
+- Portal/native Windows input on the virtual backing display
+- logical cursor topology that hides the backing display during normal pointer traversal
+- active Portal cursor-clip recovery
+- native drag bridging so windows/files dragged from another physical monitor enter the backing display naturally
+- optional **Start with Windows** registration for the current user
+- GDI rendering fallback
+- v0.14.1 legacy fallback retained under `archive/`
 
-Double-click:
+## Build the Windows executable
 
-```text
-run.cmd
-```
-
-The root launcher hands off to the frozen `archive/v0.14.1/` implementation. The archived files are not edited during v0.20 development.
-
-### v0.20 development shell
-
-Double-click:
+On Windows with the .NET 8 SDK installed, run:
 
 ```text
-run-v020.cmd
+build-release.cmd
 ```
 
-This runs:
+The build script creates a self-contained win-x64 package under:
 
 ```text
-src/VirtualQHDMirror.App/VirtualQHDMirror.App.csproj
+artifacts/release/v0.21.2/win-x64/
 ```
 
-and opens the v0.20 display setup UI. It identifies active Physical / Virtual / Unknown displays, lets the user choose a Virtual QHD ↔ Physical FHD pair, and can start that pair through the frozen v0.14.1 Portal engine while the .NET mirror engine is still being migrated.
+User entry point:
 
-`run-v020.cmd` requires the .NET 8 SDK during development.
+```text
+VirtualQHDMirror.exe
+```
+
+Required sidecars in the same folder:
+
+```text
+VirtualQHDMirror.Session.exe
+VirtualQHDMirror.ElevatedHelper.exe
+```
+
+A ZIP package and SHA-256 checksum are generated beside the output directory.
+
+After building, the root `run.cmd` launches the packaged `VirtualQHDMirror.exe`.
+
+Build outputs under `artifacts/` are intentionally not committed to Git.
 
 ## Repository layout
 
 ```text
 VirtualQHDMirror/
 ├─ archive/
-│  ├─ v0.12/      # historical PowerShell baseline
-│  ├─ v0.13.1/    # earlier runnable fallback
-│  └─ v0.14.1/    # current stable runnable fallback
-├─ docs/           # active design, roadmap, workflow and migration notes
-├─ driver/         # VQM-owned production IDD design/source area
+│  ├─ launchers/
+│  │  ├─ v0.20/
+│  │  ├─ v0.21.0/
+│  │  ├─ v0.21.1/
+│  │  └─ v0.21.2/
+│  ├─ v0.12/
+│  ├─ v0.13.1/
+│  └─ v0.14.1/
+├─ docs/
+├─ driver/
+├─ scripts/
+│  └─ build-release.ps1
 ├─ src/
 │  ├─ VirtualQHDMirror.App/
 │  ├─ VirtualQHDMirror.Core/
@@ -55,79 +75,30 @@ VirtualQHDMirror/
 │  ├─ VirtualQHDMirror.ElevatedHelper/
 │  └─ VirtualQHDMirror.Session/
 ├─ AGENTS.md
+├─ build-release.cmd
 ├─ Directory.Build.props
 ├─ README.md
+├─ THIRD_PARTY_NOTICES.md
 ├─ VirtualQHDMirror.sln
-├─ run.cmd
-└─ run-v020.cmd
+└─ run.cmd
 ```
 
-Archived snapshots keep their original internal layout for reproducibility. Active development uses lowercase `docs/`.
+## Development history
 
-## Current v0.20 focus
+The old root development launchers `run-v020.*` through `run-v0212.*` were moved to `archive/launchers/` during the v0.21.2 repository cleanup.
 
-The v0.20 public-release migration currently includes display preflight, driver lifecycle planning, and a native .NET GDI renderer backend:
+The frozen PowerShell implementations remain under their original version folders for regression comparison.
 
-- enumerate active Windows display paths,
-- classify Physical / Virtual / Unknown,
-- retain Internal / External as placement metadata rather than a hard eligibility rule,
-- identify FHD physical candidates and QHD virtual candidates,
-- avoid arbitrary pairing when multiple candidates exist,
-- prepare for later driver setup, persistent pairing and multi-monitor sessions,
-- host the v0.14.1-compatible GDI frame renderer under `VirtualQHDMirror.Core.Rendering` while the stable Portal engine remains the runtime default.
+## Virtual display driver
 
-See `docs/PUBLIC_RELEASE_PLAN.md` and `docs/V020_DISPLAY_DISCOVERY.md`.
+The current repository still treats the installed development IDD as compatibility infrastructure. The public production driver remains a separate packaging/signing milestone.
 
-## Stable fallback notes
+See:
 
-The v0.14.1 fallback still contains the proven Portal input path, GUI startup, cursor composition and Adaptive / 30 / 60 / experimental 120 FPS render modes.
+- `docs/DRIVER_RELEASE_STRATEGY.md`
+- `docs/PUBLIC_DRIVER_INSTALL_CONTRACT.md`
+- `docs/PUBLIC_RELEASE_PLAN.md`
 
-Its auxiliary launchers are intentionally kept only inside:
+## Validation policy
 
-```text
-archive/v0.14.1/scripts/
-```
-
-so the active repository root does not duplicate frozen fallback files.
-
-
-## Public virtual display driver
-
-The public release will not bundle the currently installed ge9 compatibility binary.
-
-The production target is a VQM-owned IddCx driver derived from Microsoft's official IddSample source, with unique VQM identity, stable 1–4 monitor lifecycle and Microsoft production signing.
-
-See `docs/DRIVER_RELEASE_STRATEGY.md`.
-
-
-## Native .NET mirror preview
-
-The setup UI now includes an opt-in `.NET GDI + Portal (preview)` engine.
-
-It runs in `VirtualQHDMirror.Session.exe` so mirroring can survive setup-window closure and be reattached later. The stable v0.14.1 engine remains the default until the preview passes regression testing.
-
-See `docs/V020_NATIVE_SESSION_PREVIEW.md`.
-
-
-### Development session isolation
-
-Native preview sessions run from a shadow copy under `%LOCALAPPDATA%\VirtualQHDMirror\runtime\sessions` rather than directly from `src/.../bin`. This allows the setup app and solution to be rebuilt/reopened while a mirror session remains active.
-
-
-During the preview phase, shadow-copy session directories are intentionally not auto-deleted at startup; safe stale-runtime cleanup will be added separately so a detached live session is never partially deleted.
-
-
-### v0.20 GUI launcher
-
-run-v020.cmd now follows the same user-facing launch pattern as the stable v0.14.1 entry point. It delegates to a hidden VBScript/PowerShell bootstrapper, displays a small GUI preparation window while the local Debug solution is built, and then launches the WPF setup UI without leaving a console window open.
-
-Build output is stored locally at:
-
-%LOCALAPPDATA%\VirtualQHDMirror\logs\launcher-v020-build.log
-
-Build/startup failures are shown through a GUI error dialog instead of a persistent console window.
-
-
-## Version progression
-
-Development versions now advance sequentially. The next active version after v0.20 is **v0.21**; large jumps such as v0.20 → v0.30 are not used unless a future release explicitly warrants one.
+Normal development validation is local-first. GitHub Actions or other hosted CI are not used unless the repository owner explicitly requests a specific remote run.

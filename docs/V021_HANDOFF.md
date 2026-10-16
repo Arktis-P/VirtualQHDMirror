@@ -158,6 +158,28 @@ The WPF setup application now exposes a **Start with Windows** checkbox backed b
 
 Details: `docs/V0212_WINDOWS_STARTUP.md`.
 
+## v0.21.2 — repository cleanup and release packaging
+
+The root development launcher series has been retired from the active repository surface.
+
+Historical launchers are preserved under:
+
+- `archive/launchers/v0.20/`
+- `archive/launchers/v0.21.0/`
+- `archive/launchers/v0.21.1/`
+- `archive/launchers/v0.21.2/`
+
+The active root build/runtime entry points are now:
+
+- `build-release.cmd` → `scripts/build-release.ps1`
+- `run.cmd` → locally built `artifacts/release/v0.21.2/win-x64/VirtualQHDMirror.exe`
+
+The release script publishes self-contained single-file win-x64 executables for the main app, mirror session, and elevated helper, then creates a ZIP and SHA-256 checksum.
+
+The setup UI now identifies the current native path as `v0.21.2 D3D11 + Portal` and selects it by default. The v0.14.1 path remains available only as a legacy fallback.
+
+Detailed packaging notes: `docs/V0212_RELEASE_PACKAGING.md`.
+
 ## Version policy
 
 Current patch line is `v0.21.2`. Preserve `release/v0.21.0` as the stable rollback point. Continue patching sequentially within v0.21 when the work is a small compatibility/usability improvement; use v0.22 only for a broader new milestone.

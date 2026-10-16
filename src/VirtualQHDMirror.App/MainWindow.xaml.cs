@@ -29,13 +29,13 @@ public partial class MainWindow : Window
             {
                 new MirrorEngineChoice(
                     MirrorEngineKind.StableV0141,
-                    "Stable v0.14.1 Portal"),
+                    "v0.14.1 legacy fallback"),
                 new MirrorEngineChoice(
                     MirrorEngineKind.NativeDotNetPreview,
-                    ".NET GDI + Portal (preview)")
+                    "v0.21.2 D3D11 + Portal")
             };
 
-        MirrorEngineComboBox.SelectedIndex = 0;
+        MirrorEngineComboBox.SelectedIndex = 1;
 
         _mirrorController.StateChanged += MirrorController_StateChanged;
         _nativeMirrorController.StateChanged += MirrorController_StateChanged;
@@ -553,7 +553,7 @@ public partial class MainWindow : Window
         if (bothEnginesRunning)
         {
             MirrorStateText.Text =
-                "Both the stable v0.14.1 engine and the .NET preview engine are running. VQM will not choose one automatically; stop one with Ctrl+Alt+F12 before continuing.";
+                "Both the legacy v0.14.1 fallback and the v0.21.2 engine are running. Stop one with Ctrl+Alt+F12 before continuing.";
             return;
         }
 
@@ -566,8 +566,8 @@ public partial class MainWindow : Window
 
             MirrorStateText.Text =
                 _nativeMirrorController.AttachedFromDiscovery
-                    ? $"Attached to an existing .NET GDI + Portal preview session ({processText}). Closing this v0.20 window will leave the mirror running; reopening v0.20 can attach again."
-                    : $".NET GDI + Portal preview is running ({processText}). Closing this v0.20 window will leave the mirror running.";
+                    ? $"Attached to an existing .NET GDI + Portal preview session ({processText}). Closing the setup window will leave the mirror running; reopening VQM can attach again."
+                    : $"v0.21.2 D3D11 + Portal is running ({processText}). Closing the setup window will leave the mirror running.";
 
             return;
         }
@@ -581,8 +581,8 @@ public partial class MainWindow : Window
 
             MirrorStateText.Text =
                 _mirrorController.AttachedFromDiscovery
-                    ? $"Attached to an existing v0.14.1 mirror session ({processText}). Closing this v0.20 window will leave the mirror running; reopening v0.20 can attach again."
-                    : $"Mirror is running through the v0.14.1 stable engine ({processText}). Closing this v0.20 window will leave the mirror running.";
+                    ? $"Attached to an existing v0.14.1 mirror session ({processText}). Closing the setup window will leave the mirror running; reopening VQM can attach again."
+                    : $"Mirror is running through the v0.14.1 stable engine ({processText}). Closing the setup window will leave the mirror running.";
 
             return;
         }
@@ -603,8 +603,8 @@ public partial class MainWindow : Window
             MirrorStateText.Text =
                 selectedEngine ==
                 MirrorEngineKind.NativeDotNetPreview
-                    ? "Ready. Start Mirror will launch the .NET GDI + Portal preview engine. Ctrl+Alt+F12 exits; Ctrl+Alt+F9 cycles render mode."
-                    : "Ready. Start Mirror will launch the stable v0.14.1 Portal engine.";
+                    ? "Ready. Start Mirror will launch the v0.21.2 D3D11 + Portal engine. Ctrl+Alt+F12 exits; Ctrl+Alt+F9 cycles render mode."
+                    : "Ready. Start Mirror will launch the legacy v0.14.1 fallback.";
 
             return;
         }
@@ -677,10 +677,10 @@ public partial class MainWindow : Window
         engine switch
         {
             MirrorEngineKind.NativeDotNetPreview =>
-                ".NET GDI + Portal preview",
+                "v0.21.2 D3D11 + Portal",
 
             _ =>
-                "stable v0.14.1 Portal engine"
+                "legacy v0.14.1 fallback"
         };
 
     private void MirrorController_StateChanged(object? sender, EventArgs e)

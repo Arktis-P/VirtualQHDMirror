@@ -23,7 +23,7 @@
                            Text="VirtualQHDMirror" />
                 <TextBlock Margin="0,4,0,0"
                            Foreground="DimGray"
-                           Text="v0.20 display setup + native mirror preview" />
+                           Text="v0.21.2 — D3D11 mirror + Portal input" />
             </StackPanel>
 
             <Button x:Name="RefreshButton"

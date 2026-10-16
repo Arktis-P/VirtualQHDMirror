@@ -1,5 +1,12 @@
 # VirtualQHDMirror 공개 배포 전환 계획
 
+> **Current status — v0.21.2 (2026-10-16)**
+>
+> The active branch has moved beyond the earlier v0.20/v0.21 planning baseline in this document. v0.21.2 now includes D3D11/Desktop Duplication presentation, logical backing-display cursor topology, native drag bridging, active clip recovery, and a per-user Start with Windows option. Version-specific development launchers were archived under `archive/launchers/`, and release packaging is defined in `docs/V0212_RELEASE_PACKAGING.md`.
+>
+> Older phase descriptions below remain useful as roadmap/history, but references such as “v0.21 next” should be read as historical planning notes rather than the current implementation state.
+
+
 기준 버전: **v0.14.1 stable prototype / v0.20 completed .NET migration checkpoint / v0.21 next**
 
 현재 공개화 작업 브랜치: **`gpt/public-release-v0.20`**

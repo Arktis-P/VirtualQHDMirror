@@ -52,18 +52,19 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 ## Repository baseline
 
 - Stable runnable fallback: `archive/v0.14.1/`
-- Stable root entry point: `run.cmd`
-- v0.20 launcher baseline: `run-v020.cmd` (do not repurpose for v0.21)
-- Frozen v0.21.0 launcher baseline: `run-v021.cmd`
-- v0.21.1 logical-cursor checkpoint launcher: `run-v0211.cmd`
-- Active v0.21.2 development entry point: `run-v0212.cmd`
+- Current package version: `v0.21.2`
+- Current release build entry: `build-release.cmd` → `scripts/build-release.ps1`
+- Current root runtime entry: `run.cmd` → built `artifacts/release/v0.21.2/win-x64/VirtualQHDMirror.exe`
+- Historical development launchers: `archive/launchers/`
 - Public-release v0.20 baseline: `main` / `gpt/public-release-v0.20` (closed)
 - Stable v0.21.0 checkpoint: `release/v0.21.0`
-- v0.21.1 logical-cursor checkpoint branch: `gpt/public-release-v0.21.1` (leave unchanged while v0.21.2 is tested)
-- Active v0.21.2 development branch: `gpt/public-release-v0.21.2`
+- v0.21.1 logical-cursor checkpoint branch: `gpt/public-release-v0.21.1`
+- Active v0.21.2 branch: `gpt/public-release-v0.21.2`
 - v0.21 cursor-presentation handoff: `docs/V021_HANDOFF.md`
 - v0.21.1 logical cursor topology: `docs/V0211_LOGICAL_CURSOR_TOPOLOGY.md`
 - v0.21.2 native drag bridge: `docs/V0212_NATIVE_DRAG_BRIDGE.md`
+- v0.21.2 Windows startup: `docs/V0212_WINDOWS_STARTUP.md`
+- v0.21.2 release packaging: `docs/V0212_RELEASE_PACKAGING.md`
 - Public-release .NET code: `src/`
 - Active documentation: `docs/`
 - Historical runnable baselines: `archive/v0.12/`, `archive/v0.13.1/`, `archive/v0.14.1/`
@@ -73,7 +74,7 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 
 Archived version directories are frozen snapshots. Do not rewrite their internal layout merely to match current repository conventions.
 
-Keep the stable `run.cmd` fallback working while the .NET public-release path is built alongside it. Do not remove the v0.14.1 archive as the normal fallback until the replacement reaches functional parity and passes regression validation.
+Keep `archive/v0.14.1/` intact as the legacy rollback reference. The active root `run.cmd` now targets the locally built v0.21.2 package; do not restore version-specific development launchers to the repository root.
 
 
 ## Public driver policy
