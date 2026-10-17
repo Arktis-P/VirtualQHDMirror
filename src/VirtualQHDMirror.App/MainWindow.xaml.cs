@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly WindowsStartupRegistrationService _startupRegistration = new();
 
     private DriverConfigurationPlan? _currentDriverPlan;
+    private VirtualDisplaySetupResult? _currentSetup;
     private bool _driverPlanApplyInProgress;
     private bool _synchronizingEngineSelection;
     private bool _synchronizingStartupSelection;
@@ -58,6 +59,25 @@ public partial class MainWindow : Window
     {
         DetectMirrorSessions();
         RefreshDisplays();
+    }
+
+    private void RecheckSetup_Click(object sender, RoutedEventArgs e)
+    {
+        DetectMirrorSessions();
+        RefreshDisplays();
+    }
+
+    private void SetupGuide_Click(object sender, RoutedEventArgs e)
+    {
+        var details = _currentSetup?.Guidance ??
+            "Run Recheck to inspect the current virtual display state.";
+
+        MessageBox.Show(
+            this,
+            details + "\n\nPublic automatic driver installation is not available until the VQM-owned driver is production-signed. Do not disable Secure Boot or enable test-signing.",
+            "Virtual Display Setup",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private void StartWithWindows_Changed(
@@ -341,6 +361,9 @@ public partial class MainWindow : Window
                 _driverConfigurationPlanner.BuildFullCoveragePlan(driverReport);
 
             _currentDriverPlan = driverPlan;
+            _currentSetup = VirtualDisplaySetupEvaluator.Evaluate(driverReport, driverPlan);
+            VirtualSetupStatusText.Text = _currentSetup.Headline;
+            VirtualSetupActionText.Text = _currentSetup.Guidance;
 
             DriverSummaryText.Text = driverReport.Summary;
             CapacitySummaryText.Text = driverReport.Requirement.Summary;
@@ -414,6 +437,9 @@ public partial class MainWindow : Window
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
             CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
             _currentDriverPlan = null;
+            _currentSetup = null;
+            VirtualSetupStatusText.Text = "Error — display discovery failed.";
+            VirtualSetupActionText.Text = "Check display connections and use Recheck. No driver changes were made.";
             DriverPlanSummaryText.Text = "Driver configuration plan is unavailable.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
@@ -510,6 +536,10 @@ public partial class MainWindow : Window
             !_driverPlanApplyInProgress;
 
         RefreshButton.IsEnabled =
+            !running &&
+            !_driverPlanApplyInProgress;
+
+        RecheckSetupButton.IsEnabled =
             !running &&
             !_driverPlanApplyInProgress;
 
