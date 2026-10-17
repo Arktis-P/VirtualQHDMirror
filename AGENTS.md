@@ -65,6 +65,7 @@ Exceptions require an explicit user request or an urgent recovery/hotfix where d
 - v0.21.2 native drag bridge: `docs/V0212_NATIVE_DRAG_BRIDGE.md`
 - v0.21.2 Windows startup: `docs/V0212_WINDOWS_STARTUP.md`
 - v0.21.2 release packaging: `docs/V0212_RELEASE_PACKAGING.md`
+- v0.22 virtual display onboarding/setup plan: `docs/V022_VIRTUAL_DISPLAY_ONBOARDING_PLAN.md`
 - Public-release .NET code: `src/`
 - Active documentation: `docs/`
 - Historical runnable baselines: `archive/v0.12/`, `archive/v0.13.1/`, `archive/v0.14.1/`
