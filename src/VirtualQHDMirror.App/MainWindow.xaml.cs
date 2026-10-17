@@ -304,42 +304,108 @@ public partial class MainWindow : Window
         _driverPlanApplyInProgress = true;
         UpdateMirrorControls();
 
-        var result = await _driverPlanRunner.ApplyAsync(
-            plan);
+        try
+        {
+            var result = await _driverPlanRunner.ApplyAsync(plan);
+            if (!result.Success)
+            {
+                MessageBox.Show(
+                    this,
+                    result.Message,
+                    result.Cancelled ? "Driver change cancelled" : "Driver change failed",
+                    MessageBoxButton.OK,
+                    result.Cancelled ? MessageBoxImage.Information : MessageBoxImage.Error);
+                return;
+            }
 
-        _driverPlanApplyInProgress = false;
+            // The helper's successful exit only confirms a restart request, not a
+            // usable display topology. Wait for repeated, qualifying observations.
+            var convergence = await WaitForDriverTopologyAsync(
+                Math.Max(1, plan.DesiredMonitorCount));
 
-        if (!result.Success)
+            if (!convergence)
+            {
+                MessageBox.Show(
+                    this,
+                    result.Message +
+                    "\n\nWindows did not expose the required QHD virtual display(s) within 20 seconds. " +
+                    "Check Windows display settings and the Virtual Display Setup status, then select Recheck. " +
+                    "The app will not restart the driver again automatically.",
+                    "Driver restarted — setup needs attention",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            MessageBox.Show(
+                this,
+                result.Message + "\n\nThe required QHD virtual display(s) were detected consistently.",
+                "Virtual display ready",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception)
         {
             MessageBox.Show(
                 this,
-                result.Message,
-                result.Cancelled
-                    ? "Driver change cancelled"
-                    : "Driver change failed",
+                exception.Message,
+                "Virtual display setup failed",
                 MessageBoxButton.OK,
-                result.Cancelled
-                    ? MessageBoxImage.Information
-                    : MessageBoxImage.Error);
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _driverPlanApplyInProgress = false;
+            if (IsLoaded)
+            {
+                DetectMirrorSessions();
+                RefreshDisplays();
+            }
+        }
+    }
 
-            UpdateMirrorControls();
-            return;
+    private async Task<bool> WaitForDriverTopologyAsync(int requiredQhdSources)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        var consecutiveReadySamples = 0;
+
+        while (DateTime.UtcNow < deadline && IsLoaded)
+        {
+            // RefreshDisplays probes both QueryDisplayConfig and DriverManager.
+            // A transient empty/partial topology must not be declared ready.
+            DetectMirrorSessions();
+            RefreshDisplays();
+
+            var ready = _currentSetup?.State == VirtualDisplaySetupState.Ready &&
+                        VirtualSourceComboBox.Items.Count >= requiredQhdSources;
+
+            consecutiveReadySamples = ready ? consecutiveReadySamples + 1 : 0;
+
+            if (consecutiveReadySamples >= 2)
+            {
+                return true;
+            }
+
+            var remaining = Math.Max(0, (int)Math.Ceiling(
+                (deadline - DateTime.UtcNow).TotalSeconds));
+            DriverPlanSummaryText.Text =
+                $"Waiting for stable QHD virtual topology: " +
+                $"{VirtualSourceComboBox.Items.Count}/{requiredQhdSources} active; " +
+                $"{remaining}s remaining. " +
+                (_currentSetup?.Headline ?? "Checking display topology...");
+
+            await Task.Delay(750);
         }
 
-        DriverPlanSummaryText.Text =
-            "Driver change completed. Waiting for Windows display topology to settle...";
+        if (IsLoaded)
+        {
+            DetectMirrorSessions();
+            RefreshDisplays();
+            DriverPlanSummaryText.Text +=
+                "\nTopology convergence timed out. Use Recheck after inspecting Windows display settings.";
+        }
 
-        await Task.Delay(1500);
-
-        DetectMirrorSessions();
-        RefreshDisplays();
-
-        MessageBox.Show(
-            this,
-            result.Message,
-            "Driver change completed",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        return false;
     }
 
     private void RefreshDisplays()
