@@ -42,3 +42,12 @@ No hosted CI or unattended installations.
 If output says `Extended features are not enabled. Run winget configure --enable`, the prior script could not reach installation. The updated installer now automatically runs `winget configure --enable` **after explicit INSTALL consent**, then downloads the pinned Microsoft DSC file locally before applying it. Users do not need a separate manual enable command. This changes only the developer PC WinGet Configuration feature setting when the user elects `-Install`.
 
 If enabling fails, check App Installer version, Store access and WinGet policy; the script stops instead of claiming VS/SDK/WDK installed.
+
+### Offline WinGet Configuration / blocked Microsoft Store
+If `winget configure --enable` fails with `-2147467260` (0x80004004 / operation aborted), the approved installer now **falls back automatically** to:
+
+1. Microsoft's `wdk-desktop.vsconfig` pinned to the same upstream commit; `setup.exe modify --installPath <existing VS> --config <file> --passive --norestart` adds VS C++/WDK components in-place.
+2. Ordinary `winget install --id Microsoft.WindowsSDK.10.0.28000 --exact` and the corresponding `Microsoft.WindowsWDK.10.0.28000` package. This route **does not use** WinGet Configuration or require enabling the Store-backed extended feature.
+3. Recheck prerequisites, then run the source-only WDK build gate.
+
+The `-Install` option still requires a separate explicit `INSTALL` confirmation. If these independent installers fail, the script reports the first actual package error and stops. This does not install a VQM display driver or modify current mirroring.
