@@ -108,11 +108,40 @@ if (-not $ready -and $Install) {
         Write-Host "[CANCELLED] No installation started."
         exit 3
     }
-    & $winget.Source configure --file $wingetConfig --accept-configuration-agreements
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) {
-        Write-Host "[BLOCKED] WinGet configuration failed ($exitCode); inspect output and rerun check."
-        exit $exitCode
+    # WinGet Configuration is opt-in in some App Installer versions.
+    # Consent above covers enabling this required feature as well as applying
+    # the official configuration; never change this setting in read-only mode.
+    Write-Host "[INFO] Enabling WinGet Configuration components (winget configure --enable)."
+    & $winget.Source configure --enable
+    $enableExitCode = $LASTEXITCODE
+    if ($enableExitCode -ne 0) {
+        Write-Host "[BLOCKED] WinGet Configuration could not be enabled ($enableExitCode)."
+        Write-Host "[ACTION] Check Store access, Windows Package Manager policy, or App Installer updates."
+        exit $enableExitCode
+    }
+
+    # winget configure --file expects a local configuration path. Download the
+    # configuration pinned to a reviewed Microsoft Windows-driver-samples commit.
+    $configPath = Join-Path ([System.IO.Path]::GetTempPath()) ("vqm-wdk-vscommunity-" + [guid]::NewGuid().ToString("N") + ".dsc.yaml")
+    try {
+        Write-Host "[INFO] Downloading reviewed Microsoft configuration to a temporary file."
+        Invoke-WebRequest -Uri $wingetConfig -OutFile $configPath -ErrorAction Stop
+        if (-not (Test-Path -LiteralPath $configPath) -or (Get-Item -LiteralPath $configPath).Length -lt 100) {
+            throw "Configuration download was empty or incomplete."
+        }
+        & $winget.Source configure --file $configPath --accept-configuration-agreements
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            Write-Host "[BLOCKED] WinGet configuration failed ($exitCode). Run winget configure --logs for diagnostics."
+            exit $exitCode
+        }
+    }
+    catch {
+        Write-Host "[BLOCKED] Unable to retrieve/apply official WinGet configuration: $($_.Exception.Message)"
+        exit 4
+    }
+    finally {
+        Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
     }
 
     # Re-discover after installation; do not blindly report success.

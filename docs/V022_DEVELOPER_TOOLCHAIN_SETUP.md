@@ -36,3 +36,9 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/install-the-wdk-using
 4. Send final [READY] or first [BLOCKED] line with artifacts/driver/v022-b2-wdk-build.log if compile fails.
 
 No hosted CI or unattended installations.
+
+### WinGet Configure initially disabled
+
+If output says `Extended features are not enabled. Run winget configure --enable`, the prior script could not reach installation. The updated installer now automatically runs `winget configure --enable` **after explicit INSTALL consent**, then downloads the pinned Microsoft DSC file locally before applying it. Users do not need a separate manual enable command. This changes only the developer PC WinGet Configuration feature setting when the user elects `-Install`.
+
+If enabling fails, check App Installer version, Store access and WinGet policy; the script stops instead of claiming VS/SDK/WDK installed.
