@@ -35,3 +35,9 @@ If MSBuild reports that `Microsoft.Cpp.Default.props` cannot be found in `MSBuil
 Use **Visual Studio Installer → Visual Studio 2026 Community → Modify**. Select **Desktop development with C++** and verify MSVC x64/x86 build tools and the Windows SDK. Under **Individual components**, select **Windows Driver Kit** and the relevant Spectre-mitigated libraries. For Visual Studio 2026 Microsoft's current guidance recommends **WDK 10.0.28000.2526** and a matching **SDK** (same build number). Complete changes, reopen PowerShell and rerun the gate. Do not manually copy `.props` files into MSBuild directories.
 
 Microsoft reference: https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+
+## 2026-10-19: false READY after INF verification error
+
+Observed ERROR: WDK INF verification exception, failed loading x86/InfVerif.dll with HRESULT 0x8007007E. Despite this error and incomplete package validation, previous gate printed READY because it only checked the process exit code. The DLL compiler and catalog generator did produce outputs, but full WDK verification **did not pass**.
+
+Updated fail-closed gate: prefer 64-bit MSBuild, full rebuild, reject textual INF errors even on exit 0, require a separate x64 InfVerif /w stamped-INF verification step. Do not install the unsigned driver. Next user action: pull and run scripts/check-v022-driver.ps1; provide the build log if blocked. Missing dependency/loader architecture can cause 0x8007007E even when a DLL file exists; do not copy DLLs into system folders manually.

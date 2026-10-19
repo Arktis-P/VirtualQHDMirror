@@ -86,10 +86,50 @@ $logDir = Split-Path -Parent $LogPath
 if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
+# Prefer 64-bit MSBuild; x86 InfVerif DLL loader can fail on WDK 28000.
+$native64 = Join-Path (Split-Path -Parent $msbuildPath) "amd64\MSBuild.exe"
+if (Test-Path -LiteralPath $native64) { $msbuildPath = $native64 }
+$kitBin = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Windows Kits\10\bin"
+$infTools = @()
+if (Test-Path -LiteralPath $kitBin) {
+    $infTools = @(Get-ChildItem -LiteralPath $kitBin -Filter infverif.exe -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending)
+}
+if ($infTools.Count -eq 0) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] x64 infverif.exe not found under $kitBin."
+    Write-Host "[ACTION] Check/repair WDK installation."
+    exit 2
+}
+Write-Host "[CHECK] InfVerif x64: $($infTools[0].FullName)"
 Write-Host "[INFO] Building VQM IDD source only. No signing or installation."
 Write-Host "[INFO] MSBuild: $msbuildPath"
-& $msbuildPath $project /t:Build /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /p:DriverSigning=Off /m:1 /nologo /v:minimal 2>&1 | Tee-Object -FilePath $LogPath
+# WDK may output an INF verification error while returning process exit 0.
+# Rebuild to avoid a stale DLL/CAT and inspect the actual output fail-closed.
+$buildOutput = @(& $msbuildPath $project /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /p:DriverSigning=Off /m:1 /nologo /v:minimal 2>&1)
 $exitCode = $LASTEXITCODE
-if ($exitCode -ne 0) { Write-Host "[BLOCKED] WDK build failed ($exitCode). Log: $LogPath"; exit $exitCode }
-Write-Host "[READY] B2 WDK source build succeeded. Driver UNSIGNED; DO NOT INSTALL."
+$buildOutput | Tee-Object -FilePath $LogPath
+$infFailure = @($buildOutput | Where-Object { "$_" -match '(?i)INF verification exception|InfVerif\.dll|0x8007007E' })
+$buildErrors = @($buildOutput | Where-Object { "$_" -match '(?i):\s*error\s+[A-Z]*[0-9]*\s*:|:\s*error\s*:|MSB[0-9]{4}\s*:' })
+if ($exitCode -ne 0 -or $infFailure.Count -gt 0 -or $buildErrors.Count -gt 0) {
+    Write-Host "[BLOCKED] WDK build not fully verified (MSBuild=$exitCode, INF=$($infFailure.Count), errors=$($buildErrors.Count))."
+    if ($infFailure.Count -gt 0) {
+        Write-Host "[ACTION] WDK InfVerif loader failed. Check/repair WDK 28000 and x64 tools; do not copy DLL files manually."
+    }
+    Write-Host "[INFO] Log: $LogPath"
+    exit 1
+}
+$stampedInf = Join-Path $source "x64\Release\IddSampleDriver.inf"
+if (-not (Test-Path -LiteralPath $stampedInf)) {
+    Write-Host "[BLOCKED] Missing stamped INF: $stampedInf"
+    exit 1
+}
+Write-Host "[INFO] Running standalone x64 InfVerif."
+$verifyOutput = @(& $infTools[0].FullName /w $stampedInf 2>&1)
+$verifyExit = $LASTEXITCODE
+$verifyOutput | Tee-Object -FilePath $LogPath -Append
+if ($verifyExit -ne 0 -or @($verifyOutput | Where-Object { "$_" -match '(?i)\berror\b|exception|0x8007007E' }).Count -gt 0) {
+    Write-Host "[BLOCKED] Standalone INF verification failed ($verifyExit). Log: $LogPath"
+    exit 1
+}
+Write-Host "[READY] B2 source build AND INF verification passed. Driver UNSIGNED; DO NOT INSTALL."
 Write-Host "[INFO] WDK build log: $LogPath"
