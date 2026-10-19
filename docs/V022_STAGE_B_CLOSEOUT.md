@@ -31,3 +31,17 @@ Expected currently: HOLD lines and `[BLOCKED] Stage B production exit NOT APPROV
 5. Collect run evidence for one/two/three/four separate QHD@60 monitor outputs; identity stability; multi-GPU; sleep/resume; reboot; upgrade; repair; uninstall; no effect on physical adapters or ge9.
 
 The current unsigned prototype and offline fixture JSON cannot establish these facts. Therefore Stage B **full release exit = HOLD_EXTERNAL_DEPENDENCIES**, not PASS. Keep v0.21.2 stable main and v0.22 compatibility path unchanged.
+
+
+## 2026-10-19 decision / clean desktop initial QA
+
+- Owner confirms **Team Burning Arktis** is the intended driver publishing brand. The business is already registered as a Korean sole proprietorship. For the actual certificate and Microsoft Hardware Developer Program, use the **verified legal entity name** approved by the issuing CA and Microsoft; never assume the marketing name alone suffices or overwrite INF manufacturer while legal validation is pending. GitHub profile is source-control identity, not driver signing identity.
+- On a fresh Windows desktop with **no virtual display driver**, the owner reports PASS for: (1) `build-v022.cmd` build, (2) `run-v022.cmd` launch, (3) missing-driver / no-virtual-monitor setup state shown correctly. These are user-observed smoke-test results, **not** a driver installation or runtime test.
+- Desktop may later be used for further Windows driver validation; require a dedicated recoverable OS environment before unsigned/driver lifecycle experiments. Do not encourage test-signing or disabling Secure Boot on the main OS.
+- Product B stage remains held at production signing, authorized exact-device lifecycle implementation, 1–4 monitor runtime validation, and clean install/repair/uninstall verification. No edits to the existing ge9 setup.
+
+### Hardware signing onboarding requirements
+
+Current Microsoft Hardware Developer Program instructions require organization Microsoft Entra ID global admin access, an **EV code-signing certificate** matched to the legal organization, a legal contact who can accept agreements, registration in Partner Center, and completion of any verification questionnaire. A registered sole-proprietor business name does **not** by itself prove EV organizational validation eligibility. Confirm accepted company identity and CA eligibility **before purchasing a certificate**, and follow Microsoft verification requirements rather than guessing.
+
+Microsoft guidance: https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/hardware-program-register
