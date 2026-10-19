@@ -89,7 +89,7 @@ if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {
 # Prefer 64-bit MSBuild; x86 InfVerif DLL loader can fail on WDK 28000.
 $native64 = Join-Path (Split-Path -Parent $msbuildPath) "amd64\MSBuild.exe"
 if (Test-Path -LiteralPath $native64) { $msbuildPath = $native64 }
-$kitBin = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Windows Kits\10\bin"
+$kitBin = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Windows Kits\10\tools"
 $infTools = @()
 if (Test-Path -LiteralPath $kitBin) {
     $infTools = @(Get-ChildItem -LiteralPath $kitBin -Filter infverif.exe -File -Recurse -ErrorAction SilentlyContinue |
