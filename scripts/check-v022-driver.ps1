@@ -58,8 +58,8 @@ $msbuildPath = if ($msbuild -is [System.Management.Automation.CommandInfo]) { $m
 # Resolve this VS instance's C++ targets before launching MSBuild so a missing
 # workload is reported explicitly instead of an opaque MSB4019 error.
 $msbuildBin = Split-Path -Parent $msbuildPath
-$msbuildRoot = Split-Path -Parent $msbuildBin
-$vsRoot = Split-Path -Parent $msbuildRoot
+$msbuildCurrentDir = Split-Path -Parent $msbuildBin
+$msbuildRoot = Split-Path -Parent $msbuildCurrentDir
 $vcTargetsRoot = Join-Path $msbuildRoot "Microsoft\\VC"
 $cppTargets = @(Get-ChildItem -LiteralPath $vcTargetsRoot -Filter "Microsoft.Cpp.Default.props" -Recurse -File -ErrorAction SilentlyContinue)
 if ($cppTargets.Count -eq 0) {
