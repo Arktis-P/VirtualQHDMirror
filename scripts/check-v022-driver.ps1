@@ -34,6 +34,9 @@ Assert-Vqm ($h.Contains("std::array<IDDCX_MONITOR, 4>")) "Four independent slots
 Assert-Vqm ($infText.Contains('ROOT\VirtualQHDMirrorDisplay')) "Exact VQM device ID missing."
 Assert-Vqm ($infText.Contains('"VirtualQHDMirrorIddGroup"')) "UMDF group missing."
 Assert-Vqm ($infText.Contains('"VqmMonitorCount"')) "INF default count missing."
+Assert-Vqm ($infText.Contains("UMDriverCopy=13")) "INF must use isolated Driver Store DIRID 13."
+Assert-Vqm ($infText.Contains('ServiceBinary=%13%\IddSampleDriver.dll')) "UMDF service must load DLL from DIRID 13."
+Assert-Vqm (-not $infText.Contains('UMDriverCopy=12')) "Legacy UMDF system directory copy is forbidden."
 Assert-Vqm ($infText.Contains('DriverVer= ; TODO:')) "Unexpected release DriverVer; stop for review."
 Assert-Vqm ($infText.Contains('<Your manufacturer name>')) "Unexpected release publisher; stop for review."
 

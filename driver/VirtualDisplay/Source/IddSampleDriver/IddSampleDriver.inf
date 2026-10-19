@@ -53,11 +53,11 @@ UmdfKernelModeClientPolicy = AllowKernelModeClients
 
 [IddSampleDriver_Install]
 UmdfLibraryVersion=$UMDFVERSION$
-ServiceBinary=%12%\UMDF\IddSampleDriver.dll
+ServiceBinary=%13%\IddSampleDriver.dll
 UmdfExtensions = IddCx0102
 
 [DestinationDirs]
-UMDriverCopy=12,UMDF ; copy to drivers\umdf
+UMDriverCopy=13 ; run from isolated Driver Store
 
 [UMDriverCopy]
 IddSampleDriver.dll

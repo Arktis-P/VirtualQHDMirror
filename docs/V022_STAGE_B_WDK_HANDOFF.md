@@ -41,3 +41,11 @@ Microsoft reference: https://learn.microsoft.com/en-us/windows-hardware/drivers/
 Observed ERROR: WDK INF verification exception, failed loading x86/InfVerif.dll with HRESULT 0x8007007E. Despite this error and incomplete package validation, previous gate printed READY because it only checked the process exit code. The DLL compiler and catalog generator did produce outputs, but full WDK verification **did not pass**.
 
 Updated fail-closed gate: prefer 64-bit MSBuild, full rebuild, reject textual INF errors even on exit 0, require a separate x64 InfVerif /w stamped-INF verification step. Do not install the unsigned driver. Next user action: pull and run scripts/check-v022-driver.ps1; provide the build log if blocked. Missing dependency/loader architecture can cause 0x8007007E even when a DLL file exists; do not copy DLLs into system folders manually.
+
+## 2026-10-19: INF Error 1322 — Driver Store isolation
+
+With x64 MSBuild and standalone InfVerif running correctly, the build compiled its DLL and CAT but INF validation reported **ERROR(1322)**: the UMDF DLL was copied into `%12%\\UMDF` (Windows system drivers directory), rather than isolated `DIRID 13` (Driver Store). The original imported Microsoft sample uses the older path; this is a driver **INF source issue**, not a reason to reinstall VS/WDK.
+
+Corrected the source INF: `[DestinationDirs] UMDriverCopy=13` and `[IddSampleDriver_Install] ServiceBinary=%13%\\IddSampleDriver.dll`. The source disk entry and destination remain at package root, consistent with Microsoft Driver Store isolation rules. Added fail-closed static checks. After pulling, rerun the same driver-only verification script. No driver installation/signing, and no GPU/display settings are changed.
+
+Microsoft references: https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/run-from-driver-store and https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/inf-validation-errors-and-warnings.
