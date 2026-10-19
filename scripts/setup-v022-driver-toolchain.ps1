@@ -53,9 +53,13 @@ function Get-ToolchainStatus {
     }
     if (Test-Path $wdkLib) {
         $wdkVersions = @(Get-ChildItem -LiteralPath $wdkLib -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "$requiredKitsBuild*" -and (Test-Path (Join-Path $_.FullName "umdf")) } |
+            Where-Object { $_.Name -like "$requiredKitsBuild*" } |
             Select-Object -ExpandProperty Name)
     }
+    # WDF runtime libraries are commonly under Lib\wdf\umdf instead of
+    # Lib\<SDK version>\umdf, so do not assume a versioned UMDF subfolder.
+    $wdfUm = Join-Path $wdkLib "wdf\umdf"
+    $hasWdf = Test-Path -LiteralPath $wdfUm
     [pscustomobject]@{
         VSPath = $vs
         VSVersion = $version
@@ -63,7 +67,7 @@ function Get-ToolchainStatus {
         CppTargets = $targetsOk
         SDK = ($sdkVersions.Count -gt 0)
         SDKVersions = ($sdkVersions -join ", ")
-        WDK = ($wdkFiles.Count -gt 0 -and $wdkVersions.Count -gt 0)
+        WDK = ($wdkFiles.Count -gt 0 -and ($wdkVersions.Count -gt 0 -or $hasWdf))
         WDKVersions = ($wdkVersions -join ", ")
     }
 }
