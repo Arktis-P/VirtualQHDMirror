@@ -54,6 +54,31 @@ if (-not $msbuild) {
     exit 2
 }
 $msbuildPath = if ($msbuild -is [System.Management.Automation.CommandInfo]) { $msbuild.Source } else { $msbuild.FullName }
+# MSBuild.exe alone is insufficient: VS must also have the VC targets and WDK.
+# Resolve this VS instance's C++ targets before launching MSBuild so a missing
+# workload is reported explicitly instead of an opaque MSB4019 error.
+$msbuildBin = Split-Path -Parent $msbuildPath
+$msbuildRoot = Split-Path -Parent $msbuildBin
+$vsRoot = Split-Path -Parent $msbuildRoot
+$vcTargetsRoot = Join-Path $msbuildRoot "Microsoft\\VC"
+$cppTargets = @(Get-ChildItem -LiteralPath $vcTargetsRoot -Filter "Microsoft.Cpp.Default.props" -Recurse -File -ErrorAction SilentlyContinue)
+if ($cppTargets.Count -eq 0) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] Visual Studio MSBuild exists, but Microsoft.Cpp.Default.props is missing."
+    Write-Host "[ACTION] Open Visual Studio Installer > Modify > Desktop development with C++."
+    Write-Host "[ACTION] Enable x64/x86 MSVC tools, the Windows SDK, and the Windows Driver Kit (WDK)."
+    Write-Host "[ACTION] Visual Studio 2026 should use WDK 10.0.28000.2526 + matching SDK."
+    Write-Host "[INFO] Searched: $vcTargetsRoot"
+    exit 2
+}
+# If there are multiple matching MSBuild installations, use the current VS
+# instance's targets. Avoid silently using a targets folder from another VS.
+$expectedCppTargets = Join-Path (Join-Path $vcTargetsRoot "v180") "Microsoft.Cpp.Default.props"
+if (($msbuildPath -match "[\\/]18[\\/]") -and -not (Test-Path -LiteralPath $expectedCppTargets)) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] VS 2026 v180 C++ targets are missing: $expectedCppTargets"
+    Write-Host "[ACTION] Modify the VS 2026 installation to add Desktop development with C++."
+    exit 2
+}
+Write-Host "[PASS] Visual C++ MSBuild target files detected."
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
     $LogPath = Join-Path $root "artifacts\driver\v022-b2-wdk-build.log"
 }

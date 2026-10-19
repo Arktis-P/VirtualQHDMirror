@@ -28,3 +28,10 @@ Send the last line containing [READY] or the error and `artifacts/driver/v022-b2
 - INF DriverVer and publisher are not production-ready; driver not signed or released.
 - No privileged monitor count mutation, runtime hotplug, transactional restart/rollback, clean install/upgrade/repair/uninstall, or runtime 1–4 monitor verification.
 - Keep using ge9 compatibility and run-v022.cmd. No GitHub Actions.
+
+## Windows 11 toolchain troubleshooting (MSB4019)
+If MSBuild reports that `Microsoft.Cpp.Default.props` cannot be found in `MSBuild\\Microsoft\\VC\\v180`, the Visual Studio 2026 C++ project build tools are missing/incomplete. This is a **machine toolchain problem**, not a C++ driver compiler diagnostic. The updated script reports `[NEEDS_USER_TOOLCHAIN]` before trying to build.
+
+Use **Visual Studio Installer → Visual Studio 2026 Community → Modify**. Select **Desktop development with C++** and verify MSVC x64/x86 build tools and the Windows SDK. Under **Individual components**, select **Windows Driver Kit** and the relevant Spectre-mitigated libraries. For Visual Studio 2026 Microsoft's current guidance recommends **WDK 10.0.28000.2526** and a matching **SDK** (same build number). Complete changes, reopen PowerShell and rerun the gate. Do not manually copy `.props` files into MSBuild directories.
+
+Microsoft reference: https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
