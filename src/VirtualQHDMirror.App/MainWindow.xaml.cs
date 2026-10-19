@@ -431,6 +431,8 @@ public partial class MainWindow : Window
             VirtualSetupStatusText.Text = _currentSetup.Headline;
             VirtualSetupActionText.Text = _currentSetup.Guidance;
 
+            PublicDriverReadinessText.Text =
+                PublicDriverReadinessEvaluator.Evaluate(driverReport).Message;
             DriverSummaryText.Text = driverReport.Summary;
             CapacitySummaryText.Text = driverReport.Requirement.Summary;
             DriverPlanSummaryText.Text =
@@ -501,6 +503,7 @@ public partial class MainWindow : Window
             VirtualSummaryText.Text = "Display discovery failed.";
             PhysicalSummaryText.Text = "Display discovery failed.";
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
+            PublicDriverReadinessText.Text = "Unavailable — display discovery failed. No public driver action will run.";
             CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
             _currentDriverPlan = null;
             _currentSetup = null;
