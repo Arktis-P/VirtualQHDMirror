@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <vector>
+#include <array>
 
 #include "Trace.h"
 
@@ -99,10 +100,13 @@ namespace Microsoft
 
             void InitAdapter();
             void FinishInit(UINT ConnectorIndex);
+            ULONG RequestedMonitorCount() const { return m_RequestedMonitorCount; }
 
         protected:
             WDFDEVICE m_WdfDevice;
             IDDCX_ADAPTER m_Adapter;
+            ULONG m_RequestedMonitorCount = 1;
+            std::array<IDDCX_MONITOR, 4> m_MonitorSlots{};
         };
 
         class IndirectMonitorContext

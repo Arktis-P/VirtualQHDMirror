@@ -39,6 +39,8 @@ AddReg = MyDevice_HardwareDeviceSettings
 [MyDevice_HardwareDeviceSettings]
 HKR,, "UpperFilters",  %REG_MULTI_SZ%, "IndirectKmd"
 HKR, "WUDF", "DeviceGroupId", %REG_SZ%, "VirtualQHDMirrorIddGroup"
+; VQM-specific 1–4 bounded monitor count; changes require controlled restart.
+HKR,, "VqmMonitorCount", %REG_DWORD%, 1
 
 [MyDevice_Install.NT.Services]
 Include=WUDFRD.inf
@@ -69,3 +71,4 @@ DeviceName="VirtualQHDMirror Virtual Display Adapter"
 
 REG_MULTI_SZ  = 0x00010000
 REG_SZ        = 0x00000000
+REG_DWORD     = 0x00010001

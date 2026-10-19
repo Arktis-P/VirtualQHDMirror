@@ -17,3 +17,7 @@
 This is a **non-installable development scaffold**, not a signed release driver. INF `DriverVer`, manufacturer/publisher, catalog signing and additional production TODOs remain unresolved. No compiler, WDK, hardware or Windows driver install test has been run by this agent. Do NOT install on the user's main Windows system, distribute as a driver, or add it to `build-v022.cmd` / `run-v022.cmd`. Existing ge9-compatible mirror setup stays unchanged.
 
 Next: Windows WDK compile on an isolated driver-development machine, production driver TODO cleanup, 1–4 monitor lifecycle and stable IDs, then a signed package with clean Windows 11 install / repair / uninstall QA.
+
+## B2 monitor slots checkpoint
+- Device hardware-key `VqmMonitorCount` accepts 1–4 (defaults to one when absent/invalid); the adapter reserves four IDs and reports separate IddCx monitor objects at startup.
+- Legacy demo EDIDs and parsing were removed. Runtime hotplug, the privileged settings writer, transactional restart/rollback, production INF metadata and signing are still pending.
