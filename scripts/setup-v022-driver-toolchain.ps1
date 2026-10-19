@@ -99,96 +99,78 @@ if (-not $ready -and $Install) {
         exit 2
     }
 
-    Write-Host "[ACTION] Official Microsoft WinGet configuration will install/modify Visual Studio Community, VC++, SDK and WDK."
+    Write-Host "[ACTION] Official Microsoft Visual Studio Installer and WinGet will install missing developer tools."
     Write-Host "[ACTION] This may use several GB and may request elevation or a restart."
     Write-Host "[INFO] Existing VS Community 2026 may be modified; no existing installation is uninstalled."
-    Write-Host "[INFO] Configuration is pinned to reviewed upstream commit."
+    Write-Host "[INFO] Visual Studio component list is pinned to reviewed Microsoft upstream commit."
     $approval = Read-Host "Type INSTALL to consent to developer toolchain changes (anything else cancels)"
     if ($approval -cne "INSTALL") {
         Write-Host "[CANCELLED] No installation started."
         exit 3
     }
-    # Store access can block WinGet Configuration enablement (E_ABORT /
-    # 0x80004004). An approved component-by-component route is available.
-    $useDirectInstall = $false
-    Write-Host "[INFO] Enabling WinGet Configuration components (winget configure --enable)."
-    & $winget.Source configure --enable
-    $enableExitCode = $LASTEXITCODE
-    if ($enableExitCode -ne 0) {
-        Write-Host "[WARN] WinGet Configuration enablement unavailable ($enableExitCode)."
-        Write-Host "[INFO] Using official Visual Studio Installer + individual WinGet SDK/WDK packages instead."
-        $useDirectInstall = $true
-    }
-
-    if (-not $useDirectInstall) {
-        $configPath = Join-Path ([System.IO.Path]::GetTempPath()) ("vqm-wdk-" + [guid]::NewGuid().ToString("N") + ".dsc.yaml")
-        try {
-            Invoke-WebRequest -Uri $wingetConfig -OutFile $configPath -ErrorAction Stop
-            if ((Get-Item -LiteralPath $configPath).Length -lt 100) { throw "Empty configuration." }
-            & $winget.Source configure --file $configPath --accept-configuration-agreements
-            $configExit = $LASTEXITCODE
-            if ($configExit -ne 0) {
-                Write-Host "[WARN] WinGet Configuration failed ($configExit); trying direct packages."
-                $useDirectInstall = $true
-            }
+    # VS Installer --passive requires UAC elevation at process start.
+    # Avoid WinGet DSC because it can partially apply components without admin.
+    $vsConfigUri = "https://raw.githubusercontent.com/microsoft/Windows-driver-samples/2dc3fd3a0cc84a2933f2194e7ec0871584979071/_wdk_utils/winget/configs/wdk-desktop.vsconfig"
+    $vsConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) ("vqm-wdk-" + [guid]::NewGuid().ToString("N") + ".vsconfig")
+    try {
+        Invoke-WebRequest -Uri $vsConfigUri -OutFile $vsConfigPath -ErrorAction Stop
+        $components = Get-Content -LiteralPath $vsConfigPath -Raw | ConvertFrom-Json
+        if (-not ($components.components -contains "Component.Microsoft.Windows.DriverKit") -or -not ($components.components -contains "Microsoft.VisualStudio.Component.VC.Tools.x86.x64")) {
+            throw "Official VS configuration lacks required driver / C++ components."
         }
-        catch {
-            Write-Host "[WARN] WinGet Configuration retrieval failed: $($_.Exception.Message)"
-            $useDirectInstall = $true
+        $vsPath = Find-VsInstance
+        $setup = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Microsoft Visual Studio\Installer\setup.exe"
+        if (-not $vsPath -or -not (Test-Path -LiteralPath $setup)) {
+            throw "Existing VS instance or official Visual Studio Installer not found."
         }
-        finally {
-            Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    if ($useDirectInstall) {
-        # The Microsoft-published .vsconfig describes all VS 2026 WDK components.
-        # Invoke the existing Visual Studio Installer MODIFY operation rather
-        # than winget install VS, which can skip components on existing installs.
-        $vsConfigUri = "https://raw.githubusercontent.com/microsoft/Windows-driver-samples/2dc3fd3a0cc84a2933f2194e7ec0871584979071/_wdk_utils/winget/configs/wdk-desktop.vsconfig"
-        $vsConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) ("vqm-wdk-" + [guid]::NewGuid().ToString("N") + ".vsconfig")
-        try {
-            Invoke-WebRequest -Uri $vsConfigUri -OutFile $vsConfigPath -ErrorAction Stop
-            $contents = Get-Content -LiteralPath $vsConfigPath -Raw | ConvertFrom-Json
-            if (-not ($contents.components -contains "Component.Microsoft.Windows.DriverKit") -or
-                -not ($contents.components -contains "Microsoft.VisualStudio.Component.VC.Tools.x86.x64")) {
-                throw "The downloaded Visual Studio component list is not the expected official WDK configuration."
-            }
-
-            $vsPath = Find-VsInstance
-            $setup = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Microsoft Visual Studio\Installer\setup.exe"
-            if (-not $vsPath -or -not (Test-Path -LiteralPath $setup)) {
-                throw "Visual Studio Installer or an existing VS instance is missing. Open Visual Studio Installer to repair/add Community 2026."
-            }
-
-            Write-Host "[INFO] Modifying existing VS instance via Microsoft Visual Studio Installer."
-            Write-Host "[INFO] VS: $vsPath"
-            # Separate working directory from installer directory as MS docs require.
+        $preCheck = Get-ToolchainStatus
+        if (-not $preCheck.CppTargets) {
+            Write-Host "[ACTION] Approve Windows UAC elevation for the Visual Studio Installer."
+            Write-Host "[INFO] Adding VS C++/WDK components to: $vsPath"
             $args = @("modify", "--installPath", ('"' + $vsPath + '"'), "--config", ('"' + $vsConfigPath + '"'), "--passive", "--norestart")
-            $process = Start-Process -FilePath $setup -ArgumentList $args -WorkingDirectory $root -Wait -PassThru
-            if ($process.ExitCode -notin @(0, 3010)) {
-                throw "Visual Studio Installer modify failed (exit $($process.ExitCode))."
+            $proc = Start-Process -FilePath $setup -ArgumentList $args -Verb RunAs -WorkingDirectory $root -Wait -PassThru -ErrorAction Stop
+            if ($proc.ExitCode -notin @(0,3010)) {
+                throw "Visual Studio Installer modify failed (exit $($proc.ExitCode))."
             }
-            if ($process.ExitCode -eq 3010) { Write-Host "[WARN] Visual Studio changes require restart." }
+            if ($proc.ExitCode -eq 3010) {
+                Write-Host "[NEEDS_RESTART] Restart Windows, reopen PowerShell, then rerun the check."
+                exit 3010
+            }
         }
-        catch {
-            Write-Host "[BLOCKED] Visual Studio component installation failed: $($_.Exception.Message)"
-            Write-Host "[ACTION] Visual Studio Installer > Modify > Desktop development with C++ / Windows Driver Kit."
-            exit 4
+        else {
+            Write-Host "[PASS] Visual Studio C++ targets already installed; skipping VS modify."
         }
-        finally {
-            Remove-Item -LiteralPath $vsConfigPath -Force -ErrorAction SilentlyContinue
-        }
+    }
+    catch {
+        Write-Host "[BLOCKED] Visual Studio Installer failed: $($_.Exception.Message)"
+        Write-Host "[ACTION] Approve UAC on retry or use VS Installer > Modify > Desktop development with C++."
+        exit 4
+    }
+    finally {
+        Remove-Item -LiteralPath $vsConfigPath -Force -ErrorAction SilentlyContinue
+    }
 
-        foreach ($package in @("Microsoft.WindowsSDK.10.0.28000", "Microsoft.WindowsWDK.10.0.28000")) {
-            Write-Host "[INFO] Installing/verifying $package via ordinary WinGet (no configure feature)."
-            & $winget.Source install --id $package --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
-            $installExit = $LASTEXITCODE
-            if ($installExit -ne 0) {
-                Write-Host "[BLOCKED] $package installation reported exit code $installExit."
-                Write-Host "[ACTION] Check WinGet package availability / logs; no driver was installed."
-                exit $installExit
-            }
+    # An earlier WinGet DSC run may already have installed SDK/WDK packages.
+    $postVs = Get-ToolchainStatus
+    foreach ($pkg in @(
+        @{ Id = "Microsoft.WindowsSDK.10.0.28000"; Key = "SDK" },
+        @{ Id = "Microsoft.WindowsWDK.10.0.28000"; Key = "WDK" }
+    )) {
+        if ($postVs.($pkg.Key)) {
+            Write-Host "[PASS] $($pkg.Id) already present; skipping."
+            continue
+        }
+        Write-Host "[INFO] Installing/checking $($pkg.Id) through ordinary WinGet."
+        & $winget.Source install --id $pkg.Id --exact --source winget --accept-package-agreements --accept-source-agreements
+        $code = $LASTEXITCODE
+        if ($code -ne 0) {
+            Write-Host "[WARN] WinGet returned $code for $($pkg.Id); checking actual installed files."
+        }
+        $postVs = Get-ToolchainStatus
+        if (-not $postVs.($pkg.Key)) {
+            Write-Host "[NEEDS_USER_TOOLCHAIN] $($pkg.Id) did not pass on-disk verification."
+            Write-Host "[ACTION] Review Windows SDK / WDK installer status and rerun check."
+            exit 2
         }
     }
 

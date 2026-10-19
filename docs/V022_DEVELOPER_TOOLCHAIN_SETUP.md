@@ -51,3 +51,8 @@ If `winget configure --enable` fails with `-2147467260` (0x80004004 / operation 
 3. Recheck prerequisites, then run the source-only WDK build gate.
 
 The `-Install` option still requires a separate explicit `INSTALL` confirmation. If these independent installers fail, the script reports the first actual package error and stops. This does not install a VQM display driver or modify current mirroring.
+
+### 2026-10-19: Visual Studio Installer exit 5007
+WinGet DSC previously partially installed VS/SDK/WDK, but its VSComponents operation required administrator rights. The fallback Visual Studio Installer then exited 5007 because --passive was started without elevation.
+
+The updated -Install flow runs the Microsoft Visual Studio Installer using Start-Process -Verb RunAs, displaying the Windows UAC prompt after explicit INSTALL consent. It skips WinGet DSC to avoid partial application. SDK/WDK packages already installed are rechecked and skipped when detected. Only the developer toolchain is modified; VQM display driver installation remains prohibited.
