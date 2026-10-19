@@ -208,12 +208,17 @@ NTSTATUS IddSampleDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT pDeviceInit)
     }
 
     Status = IddCxDeviceInitialize(Device);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
 
-    // Create a new device context object and attach it to the WDF device object
+    // Only construct the device context after IddCx initialization succeeds.
+    // Cleanup remains owned by the WDF object-attributes callback.
     auto* pContext = WdfObjectGet_IndirectDeviceContextWrapper(Device);
     pContext->pContext = new IndirectDeviceContext(Device);
 
-    return Status;
+    return STATUS_SUCCESS;
 }
 
 _Use_decl_annotations_
@@ -510,22 +515,24 @@ void IndirectDeviceContext::InitAdapter()
 
 void IndirectDeviceContext::FinishInit(UINT ConnectorIndex)
 {
-    if (ConnectorIndex >= VQM_MAX_MONITORS)
+    if (ConnectorIndex >= VQM_MAX_MONITORS || m_MonitorSlots[ConnectorIndex] != nullptr)
     {
         return;
     }
-    // ==============================
-    // TODO: In a real driver, the EDID should be retrieved dynamically from a connected physical monitor. The EDIDs
-    // provided here are purely for demonstration.
-    // Monitor manufacturers are required to correctly fill in physical monitor attributes in order to allow the OS
-    // to optimize settings like viewing distance and scale factor. Manufacturers should also use a unique serial
-    // number every single device to ensure the OS can tell the monitors apart.
-    // ==============================
 
     WDF_OBJECT_ATTRIBUTES Attr;
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attr, IndirectMonitorContextWrapper);
+    Attr.EvtCleanupCallback = [](WDFOBJECT object)
+    {
+        auto* context = WdfObjectGet_IndirectMonitorContextWrapper(object);
+        if (context != nullptr)
+        {
+            delete context->pContext;
+            context->pContext = nullptr;
+        }
+    };
 
-    // In the sample driver, we report a monitor right away but a real driver would do this when a monitor connection event occurs
+    // In this bounded-restart prototype monitors arrive after adapter initialization
     IDDCX_MONITOR_INFO MonitorInfo = {};
     MonitorInfo.Size = sizeof(MonitorInfo);
     MonitorInfo.MonitorType = DISPLAYCONFIG_OUTPUT_TECHNOLOGY_HDMI;
@@ -553,16 +560,20 @@ void IndirectDeviceContext::FinishInit(UINT ConnectorIndex)
     NTSTATUS Status = IddCxMonitorCreate(m_Adapter, &MonitorCreate, &MonitorCreateOut);
     if (NT_SUCCESS(Status))
     {
-        // Create a new monitor context object and attach it to the Idd monitor object
+        // The monitor context is cleaned by its WDF cleanup callback.
         auto* pMonitorContextWrapper = WdfObjectGet_IndirectMonitorContextWrapper(MonitorCreateOut.MonitorObject);
         pMonitorContextWrapper->pContext = new IndirectMonitorContext(MonitorCreateOut.MonitorObject);
 
-        // Tell the OS that the monitor has been plugged in
         IDARG_OUT_MONITORARRIVAL ArrivalOut = {};
         Status = IddCxMonitorArrival(MonitorCreateOut.MonitorObject, &ArrivalOut);
         if (NT_SUCCESS(Status))
         {
             m_MonitorSlots[ConnectorIndex] = MonitorCreateOut.MonitorObject;
+        }
+        else
+        {
+            // Failed arrival must not leak a partially created monitor.
+            WdfObjectDelete(MonitorCreateOut.MonitorObject);
         }
     }
 }
