@@ -213,10 +213,16 @@
                                     Margin="8,0,0,0"
                                     Click="SetupGuide_Click"
                                     Content="Setup guide" />
+                            <Button x:Name="DriverDownloadButton"
+                                    MinWidth="112"
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    Click="DriverDownload_Click"
+                                    Content="Get driver" />
                         </StackPanel>
                         <TextBlock Margin="0,7,0,0"
                                    Foreground="DimGray"
-                                   Text="Driver installation is guided only; automatic public installation requires a signed VQM driver."
+                                   Text="Recommended: ge9/IddSampleDriver (external GitHub releases). Install it yourself, then press Recheck. VQM never installs drivers automatically."
                                    TextWrapping="Wrap" />
 
                         <TextBlock Margin="0,14,0,0"
@@ -257,14 +263,14 @@
                                 Background="#E0E0E0" />
 
                         <TextBlock FontWeight="SemiBold"
-                                   Text="Stage B — VQM driver readiness" />
+                                   Text="Optional VQM-owned driver (archived preview)" />
                         <TextBlock x:Name="PublicDriverReadinessText"
                                    Margin="0,5,0,0"
                                    TextWrapping="Wrap"
                                    Text="Checking VQM-owned driver identity..." />
                         <TextBlock Margin="0,7,0,0"
                                    Foreground="DimGray"
-                                   Text="Public install / repair / uninstall remain locked until the signed VQM driver package passes release gates."
+                                   Text="VQM-owned driver is not required for ge9 compatibility. Unsigned prototype install remains disabled."
                                    TextWrapping="Wrap" />
                         <Border Margin="0,14,0,14"
                                 Height="1"

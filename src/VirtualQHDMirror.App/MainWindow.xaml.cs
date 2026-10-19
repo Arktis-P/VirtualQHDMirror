@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using VirtualQHDMirror.Core.Displays;
@@ -67,6 +68,9 @@ public partial class MainWindow : Window
         RefreshDisplays();
     }
 
+    private const string RecommendedDriverReleases =
+        "https://github.com/ge9/IddSampleDriver/releases";
+
     private void SetupGuide_Click(object sender, RoutedEventArgs e)
     {
         var details = _currentSetup?.Guidance ??
@@ -74,10 +78,48 @@ public partial class MainWindow : Window
 
         MessageBox.Show(
             this,
-            details + "\n\nPublic automatic driver installation is not available until the VQM-owned driver is production-signed. Do not disable Secure Boot or enable test-signing.",
+            details +
+            "\n\nRecommended external driver: ge9/IddSampleDriver. Click Get driver to open its official GitHub releases page." +
+            "\nBefore installing, review its README and the package's publisher/signature requirements. VQM does not download, trust certificates, or install drivers." +
+            "\nSet the supported QHD mode in option.txt, install following the developer's instructions, then return and click Recheck.",
             "Virtual Display Setup",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+
+    private void DriverDownload_Click(object sender, RoutedEventArgs e)
+    {
+        var choice = MessageBox.Show(
+            this,
+            "Open the external ge9/IddSampleDriver release page in your browser?\n\n" +
+            "This is a third-party Windows display driver, not bundled or installed by VirtualQHDMirror. " +
+            "Review its README, package signature and installation instructions before proceeding. " +
+            "Do not disable Secure Boot or enable system-wide test signing for VQM.\n\n" +
+            RecommendedDriverReleases,
+            "External virtual display driver",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (choice != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(RecommendedDriverReleases)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                "Could not open your browser. Visit:\n" + RecommendedDriverReleases +
+                "\n\n" + exception.Message,
+                "Driver download page",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void StartWithWindows_Changed(
