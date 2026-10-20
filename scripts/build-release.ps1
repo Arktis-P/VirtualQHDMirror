@@ -5,6 +5,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+function Get-VqmSha256 {
+ param([string]$Path)
+ $stream = [System.IO.File]::OpenRead($Path)
+ $sha = [System.Security.Cryptography.SHA256]::Create()
+ try { return [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+ finally { $sha.Dispose(); $stream.Dispose() }
+}
+
 
 $root = Split-Path -Parent $PSScriptRoot
 $dotnet = Get-Command dotnet.exe -ErrorAction SilentlyContinue
@@ -117,8 +125,8 @@ if (Test-Path -LiteralPath $zipPath) {
 
 Compress-Archive -Path (Join-Path $outputDirectory "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
 
-$hash = Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
-($hash.Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zipPath)) | Set-Content -LiteralPath $checksumPath -Encoding ASCII
+$hash = Get-VqmSha256 -Path $zipPath
+($hash + "  " + [System.IO.Path]::GetFileName($zipPath)) | Set-Content -LiteralPath $checksumPath -Encoding ASCII
 
 Remove-Item -LiteralPath $stagingRoot -Recurse -Force
 

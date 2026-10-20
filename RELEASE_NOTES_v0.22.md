@@ -1,5 +1,8 @@
 # VirtualQHDMirror v0.22
 
+**Languages:** **English** · [한국어](RELEASE_NOTES_v0.22.ko.md) · [日本語](RELEASE_NOTES_v0.22.ja.md)
+
+
 Windows 11 x64 release: guided external virtual display driver setup.
 
 ## Changes

@@ -1,8 +1,11 @@
 # VirtualQHDMirror
 
+**Languages:** **English** · [한국어](README.ko.md) · [日本語](README.ja.md)
+
+
 VirtualQHDMirror makes a lower-resolution physical Windows display behave like an interactive view of a higher-resolution virtual desktop.
 
-## v0.22 downloads
+## v0.22 downloads · [Release notes](RELEASE_NOTES_v0.22.md)
 
 Windows 11 x64; app-only Setup EXE or portable ZIP will be available under [GitHub Releases](https://github.com/Arktis-P/VirtualQHDMirror/releases). The ZIP and Setup are .NET 8 self-contained; no .NET runtime needed on the destination PC. The Setup EXE installs the APP, not a virtual monitor driver. For ZIP, keep all three executable files together. App/installer are not code-signed and Windows may warn about an unverified publisher.
 
@@ -29,7 +32,7 @@ Current behavior includes:
 On Windows with the .NET 8 SDK installed, run:
 
 ```text
-build-release.cmd
+build-v022.cmd
 ```
 
 The build script creates a self-contained win-x64 package under:
@@ -53,7 +56,7 @@ VirtualQHDMirror.ElevatedHelper.exe
 
 A ZIP package and SHA-256 checksum are generated beside the output directory.
 
-For v0.22 use `build-v022.cmd` and `run-v022.cmd`. For an optional user-level Windows installer install Inno Setup 6 and run `build-v022-installer.cmd`.
+For v0.22 run `run-v022.cmd`. Install Inno Setup 6 then use `build-v022-installer.cmd` for an optional installer; root `run.cmd` and `build-release.cmd` still target v0.21.2.
 
 Build outputs under `artifacts/` are intentionally not committed to Git.
 
@@ -108,3 +111,7 @@ See:
 ## Validation policy
 
 Normal development validation is local-first. GitHub Actions or other hosted CI are not used unless the repository owner explicitly requests a specific remote run.
+
+## Documentation languages
+
+[English release notes](RELEASE_NOTES_v0.22.md) · [한국어 README](README.ko.md) · [한국어 출시노트](RELEASE_NOTES_v0.22.ko.md) · [日本語 README](README.ja.md) · [日本語リリースノート](RELEASE_NOTES_v0.22.ja.md)

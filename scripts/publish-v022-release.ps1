@@ -1,6 +1,14 @@
 [CmdletBinding()]
 param([switch]$Publish)
 $ErrorActionPreference = 'Stop'
+function Get-VqmSha256 {
+ param([string]$Path)
+ $stream = [System.IO.File]::OpenRead($Path)
+ $sha = [System.Security.Cryptography.SHA256]::Create()
+ try { return [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+ finally { $sha.Dispose(); $stream.Dispose() }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $dir = Join-Path $root 'artifacts\release\v0.22'
 $assets = @()
@@ -8,7 +16,7 @@ foreach ($name in @('VirtualQHDMirror-v0.22-win-x64-Setup.exe','VirtualQHDMirror
   $f = Join-Path $dir $name
   if (-not (Test-Path -LiteralPath $f) -or -not (Test-Path -LiteralPath ($f + '.sha256'))) { throw "Release asset missing: $name" }
   $expected = ((Get-Content -LiteralPath ($f + '.sha256') -Raw).Trim() -split '\s+')[0]
-  if ($expected -ine (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash) { throw "SHA mismatch: $name" }
+  if ($expected -ine (Get-VqmSha256 -Path $f)) { throw "SHA mismatch: $name" }
   Write-Host "[PASS] $name"; $assets += $f; $assets += ($f + '.sha256')
 }
 if (-not $Publish) { Write-Host '[READY] Release assets verified. Smoke-test installer, then use -Publish on synced main.'; exit 0 }
