@@ -31,8 +31,12 @@ try {
   if (& git status --porcelain) { throw 'Working tree not clean.' }
   & gh auth status
   if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI authentication required.' }
-  & gh release view v0.22.0 --repo Arktis-P/VirtualQHDMirror 2>$null
-  if ($LASTEXITCODE -eq 0) { throw 'v0.22.0 already exists; refusing overwrite.' }
+  $existingReleasesJson = & gh release list --repo Arktis-P/VirtualQHDMirror --limit 100 --json tagName
+  if ($LASTEXITCODE -ne 0) { throw 'Could not list GitHub releases.' }
+  $existingReleases = @($existingReleasesJson | ConvertFrom-Json)
+  if (@($existingReleases | Where-Object { $_.tagName -eq 'v0.22.0' }).Count -gt 0) {
+    throw 'v0.22.0 already exists; refusing overwrite.'
+  }
   & gh release create v0.22.0 @assets --repo Arktis-P/VirtualQHDMirror --target $head --title 'VirtualQHDMirror v0.22' --notes-file (Join-Path $root 'RELEASE_NOTES_v0.22.md') --latest
   if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
   Write-Host '[READY] GitHub v0.22.0 release published.'
