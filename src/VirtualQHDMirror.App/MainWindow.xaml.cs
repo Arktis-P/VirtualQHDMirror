@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using VirtualQHDMirror.Core.Displays;
@@ -16,6 +17,7 @@ public partial class MainWindow : Window
     private readonly WindowsStartupRegistrationService _startupRegistration = new();
 
     private DriverConfigurationPlan? _currentDriverPlan;
+    private VirtualDisplaySetupResult? _currentSetup;
     private bool _driverPlanApplyInProgress;
     private bool _synchronizingEngineSelection;
     private bool _synchronizingStartupSelection;
@@ -58,6 +60,66 @@ public partial class MainWindow : Window
     {
         DetectMirrorSessions();
         RefreshDisplays();
+    }
+
+    private void RecheckSetup_Click(object sender, RoutedEventArgs e)
+    {
+        DetectMirrorSessions();
+        RefreshDisplays();
+    }
+
+    private const string RecommendedDriverReleases =
+        "https://github.com/ge9/IddSampleDriver/releases";
+
+    private void SetupGuide_Click(object sender, RoutedEventArgs e)
+    {
+        var details = _currentSetup?.Guidance ??
+            "Run Recheck to inspect the current virtual display state.";
+
+        MessageBox.Show(
+            this,
+            details +
+            "\n\nRecommended external driver: ge9/IddSampleDriver. Click Get driver to open its official GitHub releases page." +
+            "\nBefore installing, review its README and the package's publisher/signature requirements. VQM does not download, trust certificates, or install drivers." +
+            "\nSet the supported QHD mode in option.txt, install following the developer's instructions, then return and click Recheck.",
+            "Virtual Display Setup",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void DriverDownload_Click(object sender, RoutedEventArgs e)
+    {
+        var choice = MessageBox.Show(
+            this,
+            "Open the external ge9/IddSampleDriver release page in your browser?\n\n" +
+            "This is a third-party Windows display driver, not bundled or installed by VirtualQHDMirror. " +
+            "Review its README, package signature and installation instructions before proceeding. " +
+            "Do not disable Secure Boot or enable system-wide test signing for VQM.\n\n" +
+            RecommendedDriverReleases,
+            "External virtual display driver",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (choice != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(RecommendedDriverReleases)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (System.Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                "Could not open your browser. Visit:\n" + RecommendedDriverReleases +
+                "\n\n" + exception.Message,
+                "Driver download page",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void StartWithWindows_Changed(
@@ -284,42 +346,108 @@ public partial class MainWindow : Window
         _driverPlanApplyInProgress = true;
         UpdateMirrorControls();
 
-        var result = await _driverPlanRunner.ApplyAsync(
-            plan);
+        try
+        {
+            var result = await _driverPlanRunner.ApplyAsync(plan);
+            if (!result.Success)
+            {
+                MessageBox.Show(
+                    this,
+                    result.Message,
+                    result.Cancelled ? "Driver change cancelled" : "Driver change failed",
+                    MessageBoxButton.OK,
+                    result.Cancelled ? MessageBoxImage.Information : MessageBoxImage.Error);
+                return;
+            }
 
-        _driverPlanApplyInProgress = false;
+            // The helper's successful exit only confirms a restart request, not a
+            // usable display topology. Wait for repeated, qualifying observations.
+            var convergence = await WaitForDriverTopologyAsync(
+                Math.Max(1, plan.DesiredMonitorCount));
 
-        if (!result.Success)
+            if (!convergence)
+            {
+                MessageBox.Show(
+                    this,
+                    result.Message +
+                    "\n\nWindows did not expose the required QHD virtual display(s) within 20 seconds. " +
+                    "Check Windows display settings and the Virtual Display Setup status, then select Recheck. " +
+                    "The app will not restart the driver again automatically.",
+                    "Driver restarted — setup needs attention",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            MessageBox.Show(
+                this,
+                result.Message + "\n\nThe required QHD virtual display(s) were detected consistently.",
+                "Virtual display ready",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception exception)
         {
             MessageBox.Show(
                 this,
-                result.Message,
-                result.Cancelled
-                    ? "Driver change cancelled"
-                    : "Driver change failed",
+                exception.Message,
+                "Virtual display setup failed",
                 MessageBoxButton.OK,
-                result.Cancelled
-                    ? MessageBoxImage.Information
-                    : MessageBoxImage.Error);
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _driverPlanApplyInProgress = false;
+            if (IsLoaded)
+            {
+                DetectMirrorSessions();
+                RefreshDisplays();
+            }
+        }
+    }
 
-            UpdateMirrorControls();
-            return;
+    private async Task<bool> WaitForDriverTopologyAsync(int requiredQhdSources)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        var consecutiveReadySamples = 0;
+
+        while (DateTime.UtcNow < deadline && IsLoaded)
+        {
+            // RefreshDisplays probes both QueryDisplayConfig and DriverManager.
+            // A transient empty/partial topology must not be declared ready.
+            DetectMirrorSessions();
+            RefreshDisplays();
+
+            var ready = _currentSetup?.State == VirtualDisplaySetupState.Ready &&
+                        VirtualSourceComboBox.Items.Count >= requiredQhdSources;
+
+            consecutiveReadySamples = ready ? consecutiveReadySamples + 1 : 0;
+
+            if (consecutiveReadySamples >= 2)
+            {
+                return true;
+            }
+
+            var remaining = Math.Max(0, (int)Math.Ceiling(
+                (deadline - DateTime.UtcNow).TotalSeconds));
+            DriverPlanSummaryText.Text =
+                $"Waiting for stable QHD virtual topology: " +
+                $"{VirtualSourceComboBox.Items.Count}/{requiredQhdSources} active; " +
+                $"{remaining}s remaining. " +
+                (_currentSetup?.Headline ?? "Checking display topology...");
+
+            await Task.Delay(750);
         }
 
-        DriverPlanSummaryText.Text =
-            "Driver change completed. Waiting for Windows display topology to settle...";
+        if (IsLoaded)
+        {
+            DetectMirrorSessions();
+            RefreshDisplays();
+            DriverPlanSummaryText.Text +=
+                "\nTopology convergence timed out. Use Recheck after inspecting Windows display settings.";
+        }
 
-        await Task.Delay(1500);
-
-        DetectMirrorSessions();
-        RefreshDisplays();
-
-        MessageBox.Show(
-            this,
-            result.Message,
-            "Driver change completed",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        return false;
     }
 
     private void RefreshDisplays()
@@ -341,7 +469,12 @@ public partial class MainWindow : Window
                 _driverConfigurationPlanner.BuildFullCoveragePlan(driverReport);
 
             _currentDriverPlan = driverPlan;
+            _currentSetup = VirtualDisplaySetupEvaluator.Evaluate(driverReport, driverPlan);
+            VirtualSetupStatusText.Text = _currentSetup.Headline;
+            VirtualSetupActionText.Text = _currentSetup.Guidance;
 
+            PublicDriverReadinessText.Text =
+                PublicDriverReadinessEvaluator.Evaluate(driverReport).Message;
             DriverSummaryText.Text = driverReport.Summary;
             CapacitySummaryText.Text = driverReport.Requirement.Summary;
             DriverPlanSummaryText.Text =
@@ -412,8 +545,12 @@ public partial class MainWindow : Window
             VirtualSummaryText.Text = "Display discovery failed.";
             PhysicalSummaryText.Text = "Display discovery failed.";
             DriverSummaryText.Text = "Driver probe unavailable because display discovery failed.";
+            PublicDriverReadinessText.Text = "Unavailable — display discovery failed. No public driver action will run.";
             CapacitySummaryText.Text = "Virtual-monitor capacity could not be assessed.";
             _currentDriverPlan = null;
+            _currentSetup = null;
+            VirtualSetupStatusText.Text = "Error — display discovery failed.";
+            VirtualSetupActionText.Text = "Check display connections and use Recheck. No driver changes were made.";
             DriverPlanSummaryText.Text = "Driver configuration plan is unavailable.";
             StatusText.Text = $"{exception.GetType().Name}: {exception.Message}";
             UpdateMirrorControls();
@@ -510,6 +647,10 @@ public partial class MainWindow : Window
             !_driverPlanApplyInProgress;
 
         RefreshButton.IsEnabled =
+            !running &&
+            !_driverPlanApplyInProgress;
+
+        RecheckSetupButton.IsEnabled =
             !running &&
             !_driverPlanApplyInProgress;
 

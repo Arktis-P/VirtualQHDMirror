@@ -23,7 +23,7 @@
                            Text="VirtualQHDMirror" />
                 <TextBlock Margin="0,4,0,0"
                            Foreground="DimGray"
-                           Text="v0.21.2 — D3D11 mirror + Portal input" />
+                           Text="v0.22 — virtual display setup preview" />
             </StackPanel>
 
             <Button x:Name="RefreshButton"
@@ -191,6 +191,42 @@
 
                         <TextBlock Margin="0,14,0,0"
                                    FontWeight="SemiBold"
+                                   Text="Virtual Display Setup" />
+                        <TextBlock x:Name="VirtualSetupStatusText"
+                                   Margin="0,5,0,0"
+                                   FontWeight="SemiBold"
+                                   Text="Checking virtual display setup..."
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="VirtualSetupActionText"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Margin="0,8,0,0"
+                                    Orientation="Horizontal">
+                            <Button x:Name="RecheckSetupButton"
+                                    MinWidth="100"
+                                    Height="30"
+                                    Click="RecheckSetup_Click"
+                                    Content="Recheck" />
+                            <Button x:Name="SetupGuideButton"
+                                    MinWidth="100"
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    Click="SetupGuide_Click"
+                                    Content="Setup guide" />
+                            <Button x:Name="DriverDownloadButton"
+                                    MinWidth="112"
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    Click="DriverDownload_Click"
+                                    Content="Get driver" />
+                        </StackPanel>
+                        <TextBlock Margin="0,7,0,0"
+                                   Foreground="DimGray"
+                                   Text="Recommended: ge9/IddSampleDriver (external GitHub releases). Install it yourself, then press Recheck. VQM never installs drivers automatically."
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Margin="0,14,0,0"
+                                   FontWeight="SemiBold"
                                    Text="Virtual display driver" />
                         <TextBlock x:Name="DriverSummaryText"
                                    Margin="0,5,0,0"
@@ -226,6 +262,19 @@
                                 Height="1"
                                 Background="#E0E0E0" />
 
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Optional VQM-owned driver (archived preview)" />
+                        <TextBlock x:Name="PublicDriverReadinessText"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="Wrap"
+                                   Text="Checking VQM-owned driver identity..." />
+                        <TextBlock Margin="0,7,0,0"
+                                   Foreground="DimGray"
+                                   Text="VQM-owned driver is not required for ge9 compatibility. Unsigned prototype install remains disabled."
+                                   TextWrapping="Wrap" />
+                        <Border Margin="0,14,0,14"
+                                Height="1"
+                                Background="#E0E0E0" />
                         <TextBlock FontWeight="SemiBold"
                                    Text="Startup" />
                         <CheckBox x:Name="StartWithWindowsCheckBox"

@@ -1,0 +1,138 @@
+# B2 source-only gate: no driver installation, signing or restart.
+[CmdletBinding()]
+param([switch]$StaticOnly, [string]$LogPath = "")
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$source = Join-Path $root "driver\VirtualDisplay\Source\IddSampleDriver"
+$driver = Join-Path $source "Driver.cpp"
+$header = Join-Path $source "Driver.h"
+$inf = Join-Path $source "IddSampleDriver.inf"
+$project = Join-Path $source "IddSampleDriver.vcxproj"
+$license = Join-Path $root "driver\VirtualDisplay\LICENSE-MS-PL.txt"
+$provenance = Join-Path $root "driver\VirtualDisplay\UPSTREAM_PROVENANCE.md"
+
+function Assert-Vqm([bool]$condition, [string]$message) {
+    if (-not $condition) { throw "[BLOCKED] $message" }
+}
+foreach ($path in @($driver, $header, $inf, $project, $license, $provenance)) {
+    Assert-Vqm (Test-Path -LiteralPath $path -PathType Leaf) ("Missing: " + $path)
+}
+$cpp = [System.IO.File]::ReadAllText($driver)
+$h = [System.IO.File]::ReadAllText($header)
+$infText = [System.IO.File]::ReadAllText($inf)
+
+Assert-Vqm ($cpp.Contains("static constexpr ULONG VQM_MAX_MONITORS = 4")) "Monitor capacity must be four."
+Assert-Vqm ($cpp.Contains("requested >= 1 && requested <= VQM_MAX_MONITORS")) "1-4 bounds check missing."
+Assert-Vqm ($cpp.Contains('L"VqmMonitorCount"')) "Driver count key missing."
+Assert-Vqm ($cpp.Contains('2560, 1440, 60')) "QHD 60Hz mode missing."
+Assert-Vqm (-not $cpp.Contains("CoCreateGuid(&MonitorInfo.MonitorContainerId)")) "Random container ID not allowed."
+Assert-Vqm (-not $cpp.Contains("s_SampleMonitors")) "Physical sample EDIDs must not be used."
+Assert-Vqm ($cpp.Contains("m_MonitorSlots[ConnectorIndex]")) "Independent monitor slot tracking missing."
+Assert-Vqm ($cpp.Contains("delete context->pContext")) "Monitor context teardown missing."
+Assert-Vqm ($cpp.Contains("if (!NT_SUCCESS(Status))")) "IddCx failure guard missing."
+Assert-Vqm ($h.Contains("std::array<IDDCX_MONITOR, 4>")) "Four independent slots missing."
+Assert-Vqm ($infText.Contains('ROOT\VirtualQHDMirrorDisplay')) "Exact VQM device ID missing."
+Assert-Vqm ($infText.Contains('"VirtualQHDMirrorIddGroup"')) "UMDF group missing."
+Assert-Vqm ($infText.Contains('"VqmMonitorCount"')) "INF default count missing."
+Assert-Vqm ($infText.Contains("UMDriverCopy=13")) "INF must use isolated Driver Store DIRID 13."
+Assert-Vqm ($infText.Contains('ServiceBinary=%13%\IddSampleDriver.dll')) "UMDF service must load DLL from DIRID 13."
+Assert-Vqm (-not $infText.Contains('UMDriverCopy=12')) "Legacy UMDF system directory copy is forbidden."
+Assert-Vqm ($infText.Contains('DriverVer= ; TODO:')) "Unexpected release DriverVer; stop for review."
+Assert-Vqm ($infText.Contains('<Your manufacturer name>')) "Unexpected release publisher; stop for review."
+
+Write-Host "[PASS] B2 read-only source invariants (no system changes)."
+if ($StaticOnly) { Write-Host "[READY] Static-only source gate. WDK build NOT RUN."; exit 0 }
+
+$msbuild = Get-Command msbuild.exe -ErrorAction SilentlyContinue
+if (-not $msbuild) {
+    $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
+    $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path -LiteralPath $vswhere) {
+        $found = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+        if ($found -and (Test-Path -LiteralPath $found)) { $msbuild = Get-Item -LiteralPath $found }
+    }
+}
+if (-not $msbuild) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] MSBuild not found. Install VS C++ and WDK."
+    exit 2
+}
+$msbuildPath = if ($msbuild -is [System.Management.Automation.CommandInfo]) { $msbuild.Source } else { $msbuild.FullName }
+# MSBuild.exe alone is insufficient: VS must also have the VC targets and WDK.
+# Resolve this VS instance's C++ targets before launching MSBuild so a missing
+# workload is reported explicitly instead of an opaque MSB4019 error.
+$msbuildBin = Split-Path -Parent $msbuildPath
+$msbuildCurrentDir = Split-Path -Parent $msbuildBin
+$msbuildRoot = Split-Path -Parent $msbuildCurrentDir
+$vcTargetsRoot = Join-Path $msbuildRoot "Microsoft\\VC"
+$cppTargets = @(Get-ChildItem -LiteralPath $vcTargetsRoot -Filter "Microsoft.Cpp.Default.props" -Recurse -File -ErrorAction SilentlyContinue)
+if ($cppTargets.Count -eq 0) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] Visual Studio MSBuild exists, but Microsoft.Cpp.Default.props is missing."
+    Write-Host "[ACTION] Open Visual Studio Installer > Modify > Desktop development with C++."
+    Write-Host "[ACTION] Enable x64/x86 MSVC tools, the Windows SDK, and the Windows Driver Kit (WDK)."
+    Write-Host "[ACTION] Visual Studio 2026 should use WDK 10.0.28000.2526 + matching SDK."
+    Write-Host "[INFO] Searched: $vcTargetsRoot"
+    exit 2
+}
+# If there are multiple matching MSBuild installations, use the current VS
+# instance's targets. Avoid silently using a targets folder from another VS.
+$expectedCppTargets = Join-Path (Join-Path $vcTargetsRoot "v180") "Microsoft.Cpp.Default.props"
+if (($msbuildPath -match "[\\/]18[\\/]") -and -not (Test-Path -LiteralPath $expectedCppTargets)) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] VS 2026 v180 C++ targets are missing: $expectedCppTargets"
+    Write-Host "[ACTION] Modify the VS 2026 installation to add Desktop development with C++."
+    exit 2
+}
+Write-Host "[PASS] Visual C++ MSBuild target files detected."
+if ([string]::IsNullOrWhiteSpace($LogPath)) {
+    $LogPath = Join-Path $root "artifacts\driver\v022-b2-wdk-build.log"
+}
+$logDir = Split-Path -Parent $LogPath
+if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+# Prefer 64-bit MSBuild; x86 InfVerif DLL loader can fail on WDK 28000.
+$native64 = Join-Path (Split-Path -Parent $msbuildPath) "amd64\MSBuild.exe"
+if (Test-Path -LiteralPath $native64) { $msbuildPath = $native64 }
+$kitBin = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Windows Kits\10\tools"
+$infTools = @()
+if (Test-Path -LiteralPath $kitBin) {
+    $infTools = @(Get-ChildItem -LiteralPath $kitBin -Filter infverif.exe -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending)
+}
+if ($infTools.Count -eq 0) {
+    Write-Host "[NEEDS_USER_TOOLCHAIN] x64 infverif.exe not found under $kitBin."
+    Write-Host "[ACTION] Check/repair WDK installation."
+    exit 2
+}
+Write-Host "[CHECK] InfVerif x64: $($infTools[0].FullName)"
+Write-Host "[INFO] Building VQM IDD source only. No signing or installation."
+Write-Host "[INFO] MSBuild: $msbuildPath"
+# WDK may output an INF verification error while returning process exit 0.
+# Rebuild to avoid a stale DLL/CAT and inspect the actual output fail-closed.
+$buildOutput = @(& $msbuildPath $project /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /p:DriverSigning=Off /m:1 /nologo /v:minimal 2>&1)
+$exitCode = $LASTEXITCODE
+$buildOutput | Tee-Object -FilePath $LogPath
+$infFailure = @($buildOutput | Where-Object { "$_" -match '(?i)INF verification exception|InfVerif\.dll|0x8007007E' })
+$buildErrors = @($buildOutput | Where-Object { "$_" -match '(?i):\s*error\s+[A-Z]*[0-9]*\s*:|:\s*error\s*:|MSB[0-9]{4}\s*:' })
+if ($exitCode -ne 0 -or $infFailure.Count -gt 0 -or $buildErrors.Count -gt 0) {
+    Write-Host "[BLOCKED] WDK build not fully verified (MSBuild=$exitCode, INF=$($infFailure.Count), errors=$($buildErrors.Count))."
+    if ($infFailure.Count -gt 0) {
+        Write-Host "[ACTION] WDK InfVerif loader failed. Check/repair WDK 28000 and x64 tools; do not copy DLL files manually."
+    }
+    Write-Host "[INFO] Log: $LogPath"
+    exit 1
+}
+$stampedInf = Join-Path $source "x64\Release\IddSampleDriver.inf"
+if (-not (Test-Path -LiteralPath $stampedInf)) {
+    Write-Host "[BLOCKED] Missing stamped INF: $stampedInf"
+    exit 1
+}
+Write-Host "[INFO] Running standalone x64 InfVerif."
+$verifyOutput = @(& $infTools[0].FullName /w $stampedInf 2>&1)
+$verifyExit = $LASTEXITCODE
+$verifyOutput | Tee-Object -FilePath $LogPath -Append
+if ($verifyExit -ne 0 -or @($verifyOutput | Where-Object { "$_" -match '(?i)\berror\b|exception|0x8007007E' }).Count -gt 0) {
+    Write-Host "[BLOCKED] Standalone INF verification failed ($verifyExit). Log: $LogPath"
+    exit 1
+}
+Write-Host "[READY] B2 source build AND INF verification passed. Driver UNSIGNED; DO NOT INSTALL."
+Write-Host "[INFO] WDK build log: $LogPath"
