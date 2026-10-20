@@ -4,6 +4,12 @@
 artifacts/
 TestResults/
 
+# Visual Studio / WDK native build output
+**/x64/
+**/ARM64/
+**/Win32/
+*.tlog
+
 # IDE
 .vs/
 .idea/
