@@ -21,11 +21,11 @@ foreach ($name in @('VirtualQHDMirror.exe','VirtualQHDMirror.Session.exe','Virtu
 $found = Get-Command ISCC.exe -ErrorAction SilentlyContinue
 $compiler = if ($found) { $found.Source } else { '' }
 if (-not $compiler) {
-  foreach ($candidate in @('C:\Program Files (x86)\Inno Setup 6\ISCC.exe','C:\Program Files\Inno Setup 6\ISCC.exe')) {
+  foreach ($candidate in @('C:\Program Files (x86)\Inno Setup 6\ISCC.exe','C:\Program Files\Inno Setup 6\ISCC.exe', (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'), (Join-Path $env:LOCALAPPDATA 'Inno Setup 6\ISCC.exe'))) {
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { $compiler = $candidate; break }
   }
 }
-if (-not $compiler) { throw 'Inno Setup 6 missing. Install from https://jrsoftware.org/isinfo.php' }
+if (-not $compiler) { throw 'Inno Setup 6 not found. Run setup-inno-v022.cmd to install through the official winget package (JRSoftware.InnoSetup), then rebuild.' }
 & $compiler (Join-Path $root 'installer\VirtualQHDMirror-v022.iss')
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
 $setup = Join-Path $release 'VirtualQHDMirror-v0.22-win-x64-Setup.exe'

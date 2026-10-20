@@ -1,4 +1,8 @@
 ; App-only per-user installer for VirtualQHDMirror v0.22
+; IMPORTANT: AppId is stable across EVERY version. Do not include a version in AppId,
+; AppName, install directory, main app EXE, or shortcut target.
+; Only AppVersion, installer distribution filename and package paths are versioned.
+; Keep PrivilegesRequired=lowest and architecture/install mode consistent for upgrades.
 #define SourceDir "..\artifacts\release\v0.22\win-x64"
 [Setup]
 AppId={{C3E58A21-1EC0-4B96-A841-17CC6679F664}
