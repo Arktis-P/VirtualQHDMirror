@@ -2,9 +2,15 @@
 
 VirtualQHDMirror makes a lower-resolution physical Windows display behave like an interactive view of a higher-resolution virtual desktop.
 
+## v0.22 downloads
+
+Windows 11 x64; app-only Setup EXE or portable ZIP will be available under [GitHub Releases](https://github.com/Arktis-P/VirtualQHDMirror/releases). The ZIP and Setup are .NET 8 self-contained; no .NET runtime needed on the destination PC. The Setup EXE installs the APP, not a virtual monitor driver. For ZIP, keep all three executable files together. App/installer are not code-signed and Windows may warn about an unverified publisher.
+
+A separate virtual QHD driver is required. Use **Get driver** to open the third-party [ge9/IddSampleDriver releases](https://github.com/ge9/IddSampleDriver/releases); review the developer's instructions, trust/signing and security considerations. VQM never silently installs drivers, adds certificates, disables Secure Boot or enables test mode. After installing the driver, configure QHD 2560x1440 and click Recheck before starting the mirror.
+
 ## Current version
 
-**v0.21.2** is the active checkpoint.
+**v0.22** is the current public release candidate (Windows 11 x64). The v0.21.2 mirror engine remains the working baseline.
 
 Current behavior includes:
 
@@ -29,7 +35,7 @@ build-release.cmd
 The build script creates a self-contained win-x64 package under:
 
 ```text
-artifacts/release/v0.21.2/win-x64/
+artifacts/release/v0.22/win-x64/
 ```
 
 User entry point:
@@ -47,7 +53,7 @@ VirtualQHDMirror.ElevatedHelper.exe
 
 A ZIP package and SHA-256 checksum are generated beside the output directory.
 
-After building, the root `run.cmd` launches the packaged `VirtualQHDMirror.exe`.
+For v0.22 use `build-v022.cmd` and `run-v022.cmd`. For an optional user-level Windows installer install Inno Setup 6 and run `build-v022-installer.cmd`.
 
 Build outputs under `artifacts/` are intentionally not committed to Git.
 
@@ -91,7 +97,7 @@ The frozen PowerShell implementations remain under their original version folder
 
 ## Virtual display driver
 
-The current repository still treats the installed development IDD as compatibility infrastructure. The public production driver remains a separate packaging/signing milestone.
+The recommended external driver is [ge9/IddSampleDriver](https://github.com/ge9/IddSampleDriver/releases), installed separately by the user. VirtualQHDMirror offers a Get driver link and Recheck. The unsigned VQM-owned IDD is retained for research only.
 
 See:
 
